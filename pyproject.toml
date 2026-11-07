@@ -70,3 +70,8 @@ python_version = "3.11"
 strict = true
 files = ["src/omni_ai"]
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# extras [local] の任意依存。CI（dev のみ）では入っていない
+module = ["fastembed", "fastembed.*"]
+ignore_missing_imports = true
