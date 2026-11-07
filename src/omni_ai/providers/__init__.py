@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .ddgs import DDGSSearchAdapter
     from .fastembed import FastEmbedEmbeddingAdapter
+    from .fastembed.rerank import FastEmbedRerankAdapter
     from .gemini import GeminiChatAdapter
     from .gemini.embedding import GeminiEmbeddingAdapter
     from .ollama import OllamaChatAdapter
@@ -18,6 +19,7 @@ _LAZY = {
     "GeminiChatAdapter": ".gemini",
     "GeminiEmbeddingAdapter": ".gemini.embedding",
     "FastEmbedEmbeddingAdapter": ".fastembed",
+    "FastEmbedRerankAdapter": ".fastembed.rerank",
     "OllamaChatAdapter": ".ollama",
     "OllamaEmbeddingAdapter": ".ollama.embedding",
 }
@@ -25,6 +27,7 @@ _LAZY = {
 __all__ = [
     "DDGSSearchAdapter",
     "FastEmbedEmbeddingAdapter",
+    "FastEmbedRerankAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",
     "OllamaChatAdapter",

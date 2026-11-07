@@ -1289,3 +1289,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-18 | §4, §5, §8.4, §9.3 | 実装 (M0〜M6) にあわせた追補: `ChatResponse.provider_state`、`supported_builtins` をインスタンス属性に、`ToolRunResult.pending_tool_calls`、`normalize_ollama_host` を公開名に | 実装設計書 §13 |
 | D-19 | §4, §5, §9.4 | Embedding を実装: `EmbeddingCapability.embed` に `task` / `normalize` / `timeout` を追加、`EmbeddingResponse.normalized` を追加。プロセス内のローカル埋め込み（fastembed、extras `[local]`、Mnemo と同じモデル）を追加 | 実装設計書 §14 |
 | D-20 | §9.4 | 独自実装の provider_name をエンジン/サービス名に（`fastembed`・`ddgs`）。Search を ddgs（extras `[search]`、キー不要の横断検索）で実装 | 実装設計書 §14.4・§15 |
+| D-21 | §2 | Rerank をローカル（fastembed のクロスエンコーダー、既定 bge-reranker-v2-m3-int8）で実装。スコアは 0〜1（シグモイド） | 実装設計書 §16 |

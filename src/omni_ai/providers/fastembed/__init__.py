@@ -9,8 +9,6 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, ClassVar
@@ -18,10 +16,10 @@ from typing import Any, ClassVar
 import anyio.to_thread
 
 from ...capabilities import EmbeddingCapability, EmbeddingTask
-from ...compat import PlatformCompat
-from ...exceptions import OmniError, UnsupportedFeatureError
+from ...exceptions import UnsupportedFeatureError
 from ...types import EmbeddingResponse, ResponseMeta
 from .._embed_base import empty_response, l2_normalize, prepare_texts
+from ._lazy import LazyModel, default_cache_dir
 
 __all__ = ["DEFAULT_FASTEMBED_MODEL", "FastEmbedEmbeddingAdapter"]
 
@@ -56,49 +54,39 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         model_factory: ModelFactory | None = None,
     ) -> None:
         self.default_model: str = model
-        # 既定は OS 標準のキャッシュ（platformdirs）。他のアプリとモデルを共有するなら、そのディレクトリを渡す
-        self.cache_dir = (
-            Path(cache_dir) if cache_dir else PlatformCompat.get_cache_dir(create=False) / "models"
-        )
-        self.threads = threads
-        self.local_files_only = local_files_only
         self.batch_size = batch_size
-        self._factory = model_factory or _fastembed_factory
-        self._model: Any = None
-        self._lock = threading.Lock()
-        self._closed = False
+        # 既定は OS 標準のキャッシュ（platformdirs）。他のアプリとモデルを共有するなら、そのディレクトリを渡す
+        self._lazy = LazyModel(
+            model_name=model,
+            factory=model_factory or _fastembed_factory,
+            cache_dir=Path(cache_dir) if cache_dir else default_cache_dir(),
+            threads=threads,
+            local_files_only=local_files_only,
+        )
 
     @property
     def model_name(self) -> str:
         return self.default_model or DEFAULT_FASTEMBED_MODEL
 
     @property
+    def cache_dir(self) -> Path:
+        return self._lazy.cache_dir
+
+    @property
     def is_loaded(self) -> bool:
-        return self._model is not None
+        return self._lazy.loaded
+
+    @property
+    def _model(self) -> Any:  # テスト・後方互換用
+        return self._lazy._model
 
     def load(self) -> None:
         """モデルを読み込む（初回の embed でも自動で呼ばれる）。スレッド安全。"""
-        if self._closed:
-            raise OmniError("adapter is closed", provider=self.provider_name)
-        if self._model is not None:
-            return
-        with self._lock:
-            if self._model is not None:
-                return
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            started = time.perf_counter()
-            logger.info("loading local embedding model %s (cache=%s)", self.default_model, self.cache_dir)
-            self._model = self._factory(
-                model_name=self.default_model,
-                cache_dir=str(self.cache_dir),
-                threads=self.threads,
-                local_files_only=self.local_files_only,
-            )
-            logger.info("local embedding model loaded in %.1fs", time.perf_counter() - started)
+        self._lazy.get()
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
-        self.load()
-        return [[float(x) for x in v] for v in self._model.embed(texts, batch_size=self.batch_size)]
+        model = self._lazy.get()
+        return [[float(x) for x in v] for v in model.embed(texts, batch_size=self.batch_size)]
 
     def embed(
         self,
@@ -155,8 +143,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         )
 
     def close(self) -> None:
-        self._model = None
-        self._closed = True
+        self._lazy.close()
 
     async def aclose(self) -> None:
         self.close()

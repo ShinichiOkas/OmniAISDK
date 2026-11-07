@@ -826,3 +826,21 @@ Ollama:
 
 **実測（2026-11-08・Mac）**: live テスト 2 件通過。Ollama（gemma4:31b-cloud）＋ `BuiltinTool.WEB_SEARCH` を ToolRunner に渡すと、ddgs で実際に検索して、その結果から最新の Python の版を答えた（end-to-end）。
 
+---
+
+## 16. Rerank（2026-11-08 追加スプリント）
+
+師匠の指示: 「進めてください」（ローカル Rerank）、既定モデル「bge-reranker-v2-m3-int8 (Recommended)」。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| アダプター | `FastEmbedRerankAdapter`（provider_name `"fastembed"`、extras `[local]`） | fastembed のクロスエンコーダー。キー不要 |
+| 既定モデル | `BAAI/bge-reranker-v2-m3-int8`（多言語。実体は `onnx-community/bge-reranker-v2-m3-ONNX` の `onnx/model_int8.onnx` 570,727,094 バイト） | 師匠の決定 |
+| ライセンス | 元モデルは Apache-2.0（確認済み）。**変換版リポジトリにはライセンスの明記が無い**（未確認） | 残留リスク |
+| スコア | モデルの出力はロジット（実測: 関連 ≈ +7、無関係 ≈ -11）。既定でシグモイドを通して 0〜1 に。`fastembed={"raw_scores": True}` で生の値 | クラウドの Rerank（0〜1）と揃える |
+| 並び | スコアの降順。`top_n` で切る。空の文書・空のクエリ・`top_n < 1` は `InvalidRequestError`。文書が空リストなら空の結果 | |
+| 読み込み | 埋め込みと共通の `LazyModel`（初回利用時に 1 回、スレッド安全）。既定キャッシュは OS 標準 | |
+| 計測 | `OmniClient.rerank` も計測プロキシで包む | |
+
+**実測（2026-11-08・Mac）**: 日本語のクエリに対し、日本語と英語の関連文書が上位・無関係な文書が最下位（スコア < 0.01）。読み込み（ダウンロード込み）17.9 秒、4 文書の再順位付け 0.08 秒。live テストで、キー不要の RAG（ddgs 検索 → fastembed 埋め込み → fastembed rerank）を end-to-end で通した。
+

@@ -39,6 +39,7 @@ from .types import (
     ChatMessage,
     ChatResponse,
     EmbeddingResponse,
+    RerankResponse,
     ResponseMeta,
     SearchResponse,
     StreamEvent,
@@ -241,6 +242,36 @@ class InstrumentedSearch(SearchCapability):
         await self.inner.aclose()
 
 
+class InstrumentedRerank(RerankCapability):
+    """OmniClient.rerank が返すプロキシ。時間を記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: RerankCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+
+    def rerank(self, query: str, documents: list[str], **kwargs: Any) -> RerankResponse:
+        started = time.perf_counter()
+        res = self.inner.rerank(query, documents, **kwargs)
+        if res.results:
+            self._recorder.record(res.meta, started)
+        return res
+
+    async def arerank(self, query: str, documents: list[str], **kwargs: Any) -> RerankResponse:
+        started = time.perf_counter()
+        res = await self.inner.arerank(query, documents, **kwargs)
+        if res.results:
+            self._recorder.record(res.meta, started)
+        return res
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
 # ============================================================================ Fallback
 
 
@@ -414,6 +445,7 @@ class OmniClient:
             InstrumentedEmbedding(embedding, self._recorder) if embedding is not None else None
         )
         self._search_proxy = InstrumentedSearch(search, self._recorder) if search is not None else None
+        self._rerank_proxy = InstrumentedRerank(rerank, self._recorder) if rerank is not None else None
 
     def _get(self, name: str) -> Any:
         cap = self._caps[name]
@@ -456,8 +488,9 @@ class OmniClient:
 
     @property
     def rerank(self) -> RerankCapability:
-        cap: RerankCapability = self._get("rerank")
-        return cap
+        if self._rerank_proxy is None:
+            raise CapabilityNotConfiguredError("rerank provider is not configured.", provider="omni")
+        return self._rerank_proxy
 
     @property
     def search(self) -> SearchCapability:

@@ -85,7 +85,8 @@ OmniAISDK/
 | Chat: Google Gemini（`generateContent` v1beta） | 実装済み・実 API で確認済み（`gemini-3.1-flash-lite`。google_search は quota の都合で未確認） |
 | Embedding: Gemini / Ollama / fastembed（プロセス内・ONNX） | 実装済み・3 つとも実物で確認済み |
 | Search: ddgs（キー不要の横断検索） | 実装済み・実物で確認済み（Ollama の WEB_SEARCH 代行も end-to-end で確認） |
-| その他の 7 領域 | 抽象インタフェースのみ |
+| Rerank: fastembed（プロセス内・多言語クロスエンコーダー） | 実装済み・実物で確認済み（キー不要の RAG: 検索 → 埋め込み → 再順位付け） |
+| その他の 6 領域 | 抽象インタフェースのみ |
 
 ## 使い方
 
