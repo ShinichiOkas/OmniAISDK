@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "omni-ai-sdk"
+version = "0.1.0"
+description = "Cross-platform Multi-Provider Unified AI SDK"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Shinichi Oka" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+# コア依存は 4 つのみ・すべて Pure Python (ADR-03)
+dependencies = [
+    "pydantic>=2.7.0",
+    "httpx[http2]>=0.27.0",
+    "platformdirs>=4.2.0",
+    "anyio>=4.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "respx>=0.21.0",
+    "hypothesis>=6.100.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omni_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["live: real API calls (opt-in via OMNI_LIVE_* env vars)"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PTH"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # 日本語の全角記号を許す
+    "B024",  # Capability は抽象メソッドを持たない共通基底
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/omni_ai"]
+plugins = ["pydantic.mypy"]

@@ -1,7 +1,7 @@
 {
-  "sprint_id": "f88c33ca-3226-4f97-ab0d-d1cd21664f6d",
-  "status": "completed",
-  "goal": "コア＋Chat縦切りの実装設計書と仕様書改訂",
+  "sprint_id": "c47f60bc-740f-4bae-b532-23e27cbd25b1",
+  "status": "executing",
+  "goal": "コア＋Chat の実装 M0〜M6（おまかせ自走）",
   "created_at": "2026-11-07T15:31:05+09:00",
-  "agreement_path": ".pair-agent/agreements/core-chat-implementation-design.md"
+  "agreement_path": ".pair-agent/agreements/core-chat-implementation.md"
 }

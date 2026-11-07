@@ -1,0 +1,135 @@
+"""Chat 以外の 9 領域の応答型（仕様書 §4 のまま。アダプターは未実装）。"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Literal, Union
+
+from pydantic import BaseModel, Field
+
+from .common import ResponseMeta
+
+__all__ = [
+    "AudioSpeechResponse",
+    "AudioTranscriptionResponse",
+    "ChoiceQuestion",
+    "EmbeddingResponse",
+    "GeneratedImage",
+    "ImageResponse",
+    "JudgeQuestion",
+    "JudgeResponse",
+    "NoulQuestion",
+    "ParsedDocument",
+    "RerankItem",
+    "RerankResponse",
+    "SandboxExecutionResult",
+    "ScoreQuestion",
+    "SearchItem",
+    "SearchResponse",
+    "VerdictResult",
+]
+
+
+class NoulQuestion(BaseModel):
+    kind: Literal["noul"] = "noul"
+    instructions: str
+
+
+class ChoiceQuestion(BaseModel):
+    kind: Literal["choice"] = "choice"
+    instructions: str
+    criteria: dict[str, str | None]
+
+
+class ScoreQuestion(BaseModel):
+    kind: Literal["score"] = "score"
+    instructions: str
+    criteria: list[str]
+
+
+JudgeQuestion = Union[NoulQuestion, ChoiceQuestion, ScoreQuestion]  # noqa: UP007
+
+
+class VerdictResult(BaseModel):
+    value: bool | str | float
+    probability: float
+    distribution: dict[str, float] | None = None
+    confidence: float | None = None
+
+
+class JudgeResponse(BaseModel):
+    verdicts: dict[str, VerdictResult]
+    meta: ResponseMeta
+
+
+class GeneratedImage(BaseModel):
+    data: bytes
+    mime_type: str = "image/png"
+    revised_prompt: str | None = None
+
+    def save(self, path: str | Path) -> Path:
+        target = Path(path)
+        target.write_bytes(self.data)
+        return target
+
+
+class ImageResponse(BaseModel):
+    images: list[GeneratedImage]
+    meta: ResponseMeta
+
+
+class AudioSpeechResponse(BaseModel):
+    audio_bytes: bytes
+    format: Literal["mp3", "wav", "opus", "pcm"]
+    meta: ResponseMeta
+
+
+class AudioTranscriptionResponse(BaseModel):
+    text: str
+    language: str | None = None
+    duration_seconds: float | None = None
+    meta: ResponseMeta
+
+
+class EmbeddingResponse(BaseModel):
+    vectors: list[list[float]]
+    dimensions: int
+    meta: ResponseMeta
+
+
+class RerankItem(BaseModel):
+    index: int
+    document: str
+    relevance_score: float
+
+
+class RerankResponse(BaseModel):
+    results: list[RerankItem]
+    meta: ResponseMeta
+
+
+class SearchItem(BaseModel):
+    title: str
+    url: str
+    content: str
+    score: float | None = None
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchItem]
+    meta: ResponseMeta
+
+
+class ParsedDocument(BaseModel):
+    markdown: str
+    page_count: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    meta: ResponseMeta
+
+
+class SandboxExecutionResult(BaseModel):
+    stdout: str = ""
+    stderr: str = ""
+    exit_code: int = 0
+    artifacts: list[bytes] = Field(default_factory=list)
+    meta: ResponseMeta
