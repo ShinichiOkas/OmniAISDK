@@ -1,0 +1,69 @@
+{
+ "model": "gemma4:31b-cloud",
+ "messages": [
+  {
+   "role": "user",
+   "content": "What's the weather in Tokyo and in Osaka? Use the tool for each city."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "id": "call_ch2yu7hq",
+     "function": {
+      "index": 0,
+      "name": "get_weather",
+      "arguments": {
+       "city": "Tokyo"
+      }
+     }
+    },
+    {
+     "id": "call_6g0ckg56",
+     "function": {
+      "index": 1,
+      "name": "get_weather",
+      "arguments": {
+       "city": "Osaka"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_name": "get_weather",
+   "content": "sunny, 20C",
+   "tool_call_id": "call_ch2yu7hq"
+  },
+  {
+   "role": "tool",
+   "tool_name": "get_weather",
+   "content": "sunny, 20C",
+   "tool_call_id": "call_6g0ckg56"
+  }
+ ],
+ "tools": [
+  {
+   "type": "function",
+   "function": {
+    "name": "get_weather",
+    "description": "Get current weather for a city",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "city": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "city"
+     ]
+    }
+   }
+  }
+ ],
+ "think": false,
+ "stream": false
+}

@@ -1,0 +1,1 @@
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:13.85940507Z","message":{"role":"assistant","content":"OK"},"done":true,"done_reason":"stop","total_duration":185058860,"prompt_eval_count":18,"eval_count":2}

@@ -1,0 +1,26 @@
+{
+ "model": "gemma4:31b-cloud",
+ "messages": [
+  {
+   "role": "user",
+   "content": "Give a person named Ann aged 30 as JSON."
+  }
+ ],
+ "format": {
+  "type": "object",
+  "properties": {
+   "name": {
+    "type": "string"
+   },
+   "age": {
+    "type": "integer"
+   }
+  },
+  "required": [
+   "name",
+   "age"
+  ]
+ },
+ "think": false,
+ "stream": false
+}

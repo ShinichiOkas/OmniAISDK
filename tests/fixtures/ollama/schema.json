@@ -1,0 +1,1 @@
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:16.37085355Z","message":{"role":"assistant","content":"```json\n{\n  \"name\": \"Ann\",\n  \"age\": 30\n}\n```"},"done":true,"done_reason":"stop","total_duration":240681008,"prompt_eval_count":25,"eval_count":25}

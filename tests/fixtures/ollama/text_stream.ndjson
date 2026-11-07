@@ -1,0 +1,11 @@
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.203509839Z","message":{"role":"assistant","content":"1"},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.211888942Z","message":{"role":"assistant","content":" "},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.212087423Z","message":{"role":"assistant","content":"2"},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.212203133Z","message":{"role":"assistant","content":" "},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.212244753Z","message":{"role":"assistant","content":"3"},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.220899986Z","message":{"role":"assistant","content":" "},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.221552147Z","message":{"role":"assistant","content":"4"},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.221585567Z","message":{"role":"assistant","content":" "},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.221602838Z","message":{"role":"assistant","content":"5"},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.222527049Z","message":{"role":"assistant","content":""},"done":false}
+{"model":"gemma4:31b-cloud","remote_model":"gemma4:31b","remote_host":"https://ollama.com","created_at":"2026-11-07T07:50:14.315952895Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":212218962,"prompt_eval_count":25,"eval_count":10}
