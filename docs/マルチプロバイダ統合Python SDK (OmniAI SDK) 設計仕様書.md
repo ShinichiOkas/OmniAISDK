@@ -252,6 +252,7 @@ class ChatResponse(BaseModel):
     citations: List[Citation] = Field(default_factory=list)
     finish_reason: FinishReason = "stop"
     meta: ResponseMeta
+    provider_state: Dict[str, Any] = Field(default_factory=dict)   # アシスタントメッセージへ引き継ぐ不透明な状態 (ADR-11)
 
     def to_message(self) -> ChatMessage:
         """履歴にそのまま積めるアシスタントメッセージ（tool_calls と provider_state を保持）を返す"""
@@ -400,7 +401,8 @@ ToolChoice = Union[Literal["auto", "none", "required"], str]   # str はツー�
 
 class ChatCapability(Capability):
     # このアダプターがサーバー側で実行できる組み込みツール (ADR-09)
-    supported_builtins: ClassVar[FrozenSet[BuiltinTool]] = frozenset()
+    # ClassVar ではなく、ラッパー（FallbackChatAdapter・計測プロキシ）がインスタンスで上書きできる属性
+    supported_builtins: FrozenSet[BuiltinTool] = frozenset()
 
     @abstractmethod
     def generate(
@@ -1034,7 +1036,7 @@ class ToolRunResult(BaseModel):
 2. `agenerate` を呼ぶ。`tool_calls` が空なら終了する
 3. `response.to_message()`（`tool_calls` と `provider_state` を含む）を履歴に足す
 4. 各 `ToolCall` の handler を実行する（同期関数はスレッドで実行し、`parallel_tool_calls=True` なら並行して実行する）。未知の名前は「unknown tool」という結果を、引数の検証失敗や例外は `on_tool_error` に従った結果を返す
-5. `Role.TOOL`・`tool_call_id`・`name` を付けて結果を履歴に足し、2 に戻る
+5. `Role.TOOL`・`tool_call_id`・`name` を付けて結果を履歴に足し、2 に戻る（handler を持たない `ToolDefinition` が呼ばれた場合は、ループを止めて `ToolRunResult.pending_tool_calls` として呼び出し側に返す）
 6. `max_turns` に達したら `ToolLoopLimitError`（途中の結果を保持する）を送出する
 
 ## **8.5 利用者側のメリット**
@@ -1185,7 +1187,7 @@ class PlatformCompat:
             # v3.1: Ollama 本体と同じ解釈に揃える
             #   スキーム省略 → http / ポート省略 → 11434（スキーム明示時は http=80, https=443）
             #   0.0.0.0 (待ち受け用アドレス) は接続先として 127.0.0.1 に読み替える
-            return PlatformCompat._normalize_ollama_host(env_url)
+            return PlatformCompat.normalize_ollama_host(env_url)
         # Dockerコンテナ内からの実行判定 (/.dockerenv の存在チェック)
         if Path("/.dockerenv").exists():
             return "http://host.docker.internal:11434"
@@ -1281,3 +1283,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-15 | §9.2, §9.3 | Ollama 画像生成の位置づけを注記。`OLLAMA_HOST` の解釈を Ollama 本体と一致させた | 一次資料・実測に基づく |
 | D-16 | §9.4 | src レイアウト、`types/` パッケージ化、`_http/` `pricing.py` 追加、パッケージ版を 0.1.0 から開始、dev 依存に hypothesis | 実装設計書 §3 にあわせた |
 | D-17 | §9.5 | 番号が 8〜13 になっていたのを 1〜6 に修正 | 書式の崩れ |
+| D-18 | §4, §5, §8.4, §9.3 | 実装 (M0〜M6) にあわせた追補: `ChatResponse.provider_state`、`supported_builtins` をインスタンス属性に、`ToolRunResult.pending_tool_calls`、`normalize_ollama_host` を公開名に | 実装設計書 §13 |

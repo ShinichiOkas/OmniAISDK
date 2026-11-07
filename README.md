@@ -63,40 +63,75 @@ OmniAI SDK は、以下のような機能領域を横断的に扱える設計を
 
 ```text
 OmniAISDK/
-├── LICENSE
-├── README.md
+├── src/omni_ai/            # SDK 本体（コア＋Chat: Gemini / Ollama）
+├── tests/                  # unit / contract / live（live は環境変数で有効化）
 ├── docs/
-│   └── マルチプロバイダ統合Python SDK (OmniAI SDK) 設計仕様書.md
-└── ...
+│   ├── マルチプロバイダ統合Python SDK (OmniAI SDK) 設計仕様書.md   # 仕様書 v3.1
+│   └── OmniAI SDK 実装設計書 (コア＋Chat).md                      # 実装設計
+└── pyproject.toml
 ```
-
-- `docs/` には、SDK の設計仕様書が格納されています。
-- `LICENSE` にはライセンス情報が含まれています。
-- 実装コードやパッケージ本体は、この段階では設計書中心の構成です。
 
 ## 設計書
 
-詳細な設計思想と API 仕様は、以下のドキュメントを参照してください。
+- [設計仕様書 v3.1](./docs/マルチプロバイダ統合Python%20SDK%20(OmniAI%20SDK)%20設計仕様書.md)
+- [実装設計書 (コア＋Chat)](./docs/OmniAI%20SDK%20実装設計書%20(コア＋Chat).md)
 
-- [マルチプロバイダ統合Python SDK (OmniAI SDK) 設計仕様書](./docs/マルチプロバイダ統合Python%20SDK%20(OmniAI%20SDK)%20設計仕様書.md)
+## 現在のステータス（0.1.0 開発中）
 
-## 現在のステータス
+| 領域 | 状態 |
+| :--- | :--- |
+| コア（例外・型・設定・OS差分吸収・HTTP 基盤・再試行・ルーター・テレメトリ・ToolRunner） | 実装済み |
+| Chat: Ollama（ネイティブ `/api/chat`） | 実装済み・実 API で確認済み（`gemma4:31b-cloud`） |
+| Chat: Google Gemini（`generateContent` v1beta） | 実装済み・**実 API では未確認**（資料ベースのテストのみ） |
+| Chat 以外の 9 領域 | 抽象インタフェースのみ |
 
-現時点では、設計のベースとなる仕様書の整備が中心です。今後、以下を段階的に実装していく予定です。
+## 使い方
 
-- 実装用の Python パッケージ構成
-- プロバイダアダプタの定義
-- 共通例外クラスとフォールバック構造
-- ストリーミング型とメッセージモデル
-- テスト / CI / ドキュメント整備
+```bash
+pip install -e ".[dev]"
+```
 
-## 今後の実装方針
+```python
+import asyncio
+from omni_ai import ChatMessage, FallbackChatAdapter, OmniClient, omni_tool
+from omni_ai.providers import GeminiChatAdapter, OllamaChatAdapter
 
-1. 低レベルの共通型定義を作成する
-2. 主要プロバイダの adapter を追加する
-3. 例外階層と fallback を実装する
-4. RAG / tool call / sandbox を段階的に統合する
-5. 実運用向けのテストと observability を構築する
+
+@omni_tool
+def get_weather(city: str) -> str:
+    """Get current weather for a city.
+
+    Args:
+        city: city name
+    """
+    return "sunny, 20C"
+
+
+async def main() -> None:
+    chat = FallbackChatAdapter([
+        GeminiChatAdapter(),                                  # GEMINI_API_KEY を参照
+        OllamaChatAdapter(default_model="gemma4:31b-cloud"),  # Gemini が失敗したら Ollama へ
+    ])
+    async with OmniClient(chat=chat) as ai:
+        result = await ai.tools.arun(
+            [ChatMessage.user("東京の天気は？")], [get_weather]
+        )
+        print(result.response.content)
+        print(ai.telemetry.by_provider())
+
+
+asyncio.run(main())
+```
+
+## テスト
+
+```bash
+pytest -m "not live"                                    # 通常（ネットワーク不要）
+OMNI_LIVE_OLLAMA=gemma4:31b-cloud pytest -m live tests/live   # 実 API（Ollama）
+OMNI_LIVE_GEMINI=1 pytest -m live tests/live                   # 実 API（Gemini、要 GEMINI_API_KEY）
+```
+
+CI は GitHub Actions で 3 OS × Python 3.11〜3.13 を回す。
 
 ## ライセンス
 
