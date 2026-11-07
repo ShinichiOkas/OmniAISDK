@@ -1,7 +1,7 @@
 ---
 sprint_id: 9ed8169e-c3cb-46d8-ad4a-ebdaf90198d7
-version: 2
-status: reviewing
+version: 3
+status: completed
 created_at: 2026-11-07T19:00:00+09:00
 updated_at: 2026-11-07T19:00:00+09:00
 domain_tags: [python-sdk, embedding, llm-provider, local-model]
@@ -50,3 +50,5 @@ EmbeddingCapability を実装する。Gemini・Ollama・ローカル（プロセ
 
 - v1 [2026-11-07]: 初版（途中でローカル実装の追加指示を受けて範囲を拡張: change_count_improvement=1）
 - v2 [2026-11-07]: 3 アダプターを実装し、live で確認（Mnemo のベクトルとの比較 cos=0.9999999）
+- 師匠（原文）: 「レビューは省略、有益なスキルがあったらそれだけ反映」
+- v3 [2026-11-07]: スプリント完了。Skill を 4 件登録（ペア固有 2・プロジェクト固有 2）
