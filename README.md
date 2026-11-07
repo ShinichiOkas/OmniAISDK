@@ -86,12 +86,13 @@ OmniAISDK/
 | Embedding: Gemini / Ollama / fastembed（プロセス内・ONNX） | 実装済み・3 つとも実物で確認済み |
 | Search: ddgs（キー不要の横断検索） | 実装済み・実物で確認済み（Ollama の WEB_SEARCH 代行も end-to-end で確認） |
 | Rerank: fastembed（プロセス内・多言語クロスエンコーダー） | 実装済み・実物で確認済み（キー不要の RAG: 検索 → 埋め込み → 再順位付け） |
-| その他の 6 領域 | 抽象インタフェースのみ |
+| DocParser: pypdf（PDF）/ markitdown（Office・RTF） | 実装済み・実物の文書ファイルで確認済み |
+| その他の 5 領域 | 抽象インタフェースのみ |
 
 ## 使い方
 
 ```bash
-pip install -e ".[dev]"          # ローカル埋め込み・検索も使うなら ".[dev,local,search]"
+pip install -e ".[dev]"          # ローカル埋め込み・検索・文書解析も使うなら ".[dev,local,search,docs]"
 ```
 
 ```python

@@ -323,14 +323,16 @@ class SearchCapability(Capability):
 
 
 class DocumentParserCapability(Capability):
+    """文書 → テキスト（Markdown）。``mime_type`` を省略すると、Path の拡張子から判定する。"""
+
     @abstractmethod
     def parse(
-        self, file_source: MediaSource, *, mime_type: str = "application/pdf", **provider_options: Any
+        self, file_source: MediaSource, *, mime_type: str | None = None, **provider_options: Any
     ) -> ParsedDocument: ...
 
     @abstractmethod
     async def aparse(
-        self, file_source: MediaSource, *, mime_type: str = "application/pdf", **provider_options: Any
+        self, file_source: MediaSource, *, mime_type: str | None = None, **provider_options: Any
     ) -> ParsedDocument: ...
 
 

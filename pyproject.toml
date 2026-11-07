@@ -31,6 +31,8 @@ dependencies = [
 local = ["fastembed>=0.4"]
 # キー不要の Web 検索（ddgs: 複数エンジンの横断検索ライブラリ）
 search = ["ddgs>=9.0"]
+# 文書解析（PDF は pypdf、Office / RTF は markitdown）
+docs = ["markitdown[docx,xlsx,pptx]>=0.1", "pypdf>=4"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -75,5 +77,5 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 # extras [local] の任意依存。CI（dev のみ）では入っていない
-module = ["fastembed", "fastembed.*", "ddgs", "ddgs.*"]
+module = ["fastembed", "fastembed.*", "ddgs", "ddgs.*", "markitdown", "markitdown.*", "pypdf", "pypdf.*"]
 ignore_missing_imports = true

@@ -6,15 +6,21 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._doc_base import MimeRoutingDocumentParser
     from .ddgs import DDGSSearchAdapter
     from .fastembed import FastEmbedEmbeddingAdapter
     from .fastembed.rerank import FastEmbedRerankAdapter
     from .gemini import GeminiChatAdapter
     from .gemini.embedding import GeminiEmbeddingAdapter
+    from .markitdown import MarkItDownDocumentParser
     from .ollama import OllamaChatAdapter
     from .ollama.embedding import OllamaEmbeddingAdapter
+    from .pypdf import PyPDFDocumentParser
 
 _LAZY = {
+    "MarkItDownDocumentParser": ".markitdown",
+    "MimeRoutingDocumentParser": "._doc_base",
+    "PyPDFDocumentParser": ".pypdf",
     "DDGSSearchAdapter": ".ddgs",
     "GeminiChatAdapter": ".gemini",
     "GeminiEmbeddingAdapter": ".gemini.embedding",
@@ -30,9 +36,22 @@ __all__ = [
     "FastEmbedRerankAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",
+    "MarkItDownDocumentParser",
+    "MimeRoutingDocumentParser",
     "OllamaChatAdapter",
     "OllamaEmbeddingAdapter",
+    "PyPDFDocumentParser",
+    "default_document_parser",
 ]
+
+
+def default_document_parser() -> MimeRoutingDocumentParser:
+    """PDF は pypdf、Office / RTF は markitdown に振り分ける既定の構成（extras ``[docs]``）。"""
+    from ._doc_base import MimeRoutingDocumentParser
+    from .markitdown import MarkItDownDocumentParser
+    from .pypdf import PyPDFDocumentParser
+
+    return MimeRoutingDocumentParser([PyPDFDocumentParser(), MarkItDownDocumentParser()])
 
 
 def __getattr__(name: str) -> Any:

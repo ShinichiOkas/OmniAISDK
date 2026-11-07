@@ -124,6 +124,9 @@ class SearchResponse(BaseModel):
 class ParsedDocument(BaseModel):
     markdown: str
     page_count: int | None = None
+    mime_type: str | None = None
+    # 本文を取り出せなかった理由（暗号化・画像だけの PDF・変換失敗など）。入っているとき markdown は空
+    empty_reason: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     meta: ResponseMeta
 

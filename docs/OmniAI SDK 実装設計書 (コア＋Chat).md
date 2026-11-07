@@ -844,3 +844,22 @@ Ollama:
 
 **実測（2026-11-08・Mac）**: 日本語のクエリに対し、日本語と英語の関連文書が上位・無関係な文書が最下位（スコア < 0.01）。読み込み（ダウンロード込み）17.9 秒、4 文書の再順位付け 0.08 秒。live テストで、キー不要の RAG（ddgs 検索 → fastembed 埋め込み → fastembed rerank）を end-to-end で通した。
 
+---
+
+## 17. DocParser（2026-11-08 追加スプリント）
+
+師匠の指示: 「次へ進んでください」→ おまかせで DocParser を選んだ（Mnemo の標準: PDF は pypdf、Office / RTF は markitdown）。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| アダプター | `PyPDFDocumentParser`（`"pypdf"`）・`MarkItDownDocumentParser`（`"markitdown"`）・`MimeRoutingDocumentParser`（MIME で振り分け）。既定構成は `providers.default_document_parser()`。extras `[docs]` | 命名はエンジン名（confirmed Skill）。結果の `meta.provider` は実際に処理したエンジン |
+| 対応形式 | .pdf / .docx / .doc / .xlsx / .xls / .pptx / .ppt / .rtf（拡張子 → MIME の明示の表） | Mnemo と同じ集合。`mimetypes` は OS によって .docx を知らない |
+| 入力 | Path / bytes / ストリーム。bytes とストリームは `mime_type` が必要（ファイル名があれば拡張子から判定）。`UrlRef` / `FileRef` / 素の str は受け付けない | markitdown の `convert(str)` は URL として取りに行くことがある（勝手にダウンロードしない方針） |
+| 取り出せなかったとき | 例外にせず `ParsedDocument.empty_reason` に理由を入れる（暗号化・画像だけの PDF・変換失敗・本文が空）。そのとき `markdown` は空 | Mnemo の方針「取れなかった理由まで含めて返す」 |
+| 字形の正規化 | 康熙部首・CJK 部首補助・CJK 互換漢字の 4 範囲だけ、文字ごとに NFKC（`omni_ai._text.normalize_cjk_forms`）。全角英数字などは変えない | PDF が「口」を U+2F1D で返すことがある（Mnemo の実測） |
+| ストリーム | 読んだら元の位置に戻す | 同じ履歴を何度も送るため（§13 I-15 と同じ） |
+| CI | CI に `[docs]` を入れて、実物の文書ファイルで契約テストを走らせる | 入れないと、文書解析のテストがまるごとスキップされていた |
+| 仕様の変更 | `DocumentParserCapability.parse(mime_type=None)`（v3.0 は既定が `"application/pdf"`）。`ParsedDocument` に `mime_type` / `empty_reason` を追加 | 拡張子から判定できるため |
+
+**実測（2026-11-08・Mac、markitdown 0.1.9 / pypdf 7.0.0）**: テスト用の docx / xlsx / pptx / PDF（本文あり・画像だけ・暗号化）を `tests/fixtures/docs/make_fixtures.py` で生成して確認。暗号化された PDF は、空パスワードで開けず、ページ数も読めない（`page_count=None`）。手元の文書 4 つを解析 → fastembed で埋め込み → rerank すると、「猫はどれくらい眠る？」に対して猫の睡眠のスライドが最上位になった（キー不要の RAG）。
+

@@ -57,3 +57,19 @@ async def test_live_keyless_rag_pipeline() -> None:
         providers = [m.provider for m in ai.telemetry.history]
         assert providers == ["ddgs", "fastembed", "fastembed"], providers
         assert ai.telemetry.total_cost_usd == 0.0 and ai.telemetry.unpriced_calls == 0
+
+
+def test_live_local_document_rag(tmp_path) -> None:
+    """手元の文書 → テキスト → 埋め込み → 再順位付け（キー不要・すべてローカル）。"""
+    from omni_ai.providers import default_document_parser
+
+    docs_dir = Path(__file__).parent.parent / "fixtures" / "docs"
+    parser = default_document_parser()
+    texts = [
+        parser.parse(docs_dir / n).markdown for n in ("memo.docx", "table.xlsx", "slides.pptx", "text.pdf")
+    ]
+    assert all(texts)
+    ranked = FastEmbedRerankAdapter().rerank("猫はどれくらい眠る？", texts, top_n=2)
+    assert ranked.results[0].index == 2  # slides.pptx（猫の睡眠）が最上位
+    emb = _embedder().embed(texts)
+    assert len(emb.vectors) == 4

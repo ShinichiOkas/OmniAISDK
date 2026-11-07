@@ -39,6 +39,7 @@ from .types import (
     ChatMessage,
     ChatResponse,
     EmbeddingResponse,
+    ParsedDocument,
     RerankResponse,
     ResponseMeta,
     SearchResponse,
@@ -272,6 +273,34 @@ class InstrumentedRerank(RerankCapability):
         await self.inner.aclose()
 
 
+class InstrumentedDocumentParser(DocumentParserCapability):
+    """OmniClient.doc_parser が返すプロキシ。時間を記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: DocumentParserCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+
+    def parse(self, file_source: Any, **kwargs: Any) -> ParsedDocument:
+        started = time.perf_counter()
+        res = self.inner.parse(file_source, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    async def aparse(self, file_source: Any, **kwargs: Any) -> ParsedDocument:
+        started = time.perf_counter()
+        res = await self.inner.aparse(file_source, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
 # ============================================================================ Fallback
 
 
@@ -446,6 +475,9 @@ class OmniClient:
         )
         self._search_proxy = InstrumentedSearch(search, self._recorder) if search is not None else None
         self._rerank_proxy = InstrumentedRerank(rerank, self._recorder) if rerank is not None else None
+        self._doc_parser_proxy = (
+            InstrumentedDocumentParser(doc_parser, self._recorder) if doc_parser is not None else None
+        )
 
     def _get(self, name: str) -> Any:
         cap = self._caps[name]
@@ -500,8 +532,9 @@ class OmniClient:
 
     @property
     def doc_parser(self) -> DocumentParserCapability:
-        cap: DocumentParserCapability = self._get("doc_parser")
-        return cap
+        if self._doc_parser_proxy is None:
+            raise CapabilityNotConfiguredError("doc_parser provider is not configured.", provider="omni")
+        return self._doc_parser_proxy
 
     @property
     def sandbox(self) -> SandboxCapability:

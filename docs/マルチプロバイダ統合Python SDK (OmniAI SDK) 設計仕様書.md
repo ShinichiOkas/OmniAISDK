@@ -1241,6 +1241,7 @@ dependencies = [
 [project.optional-dependencies]
 local = ["fastembed>=0.4"]   # v3.1: プロセス内のローカル埋め込み（ONNX）。onnxruntime はバイナリ wheel のため extras
 search = ["ddgs>=9.0"]       # v3.1: キー不要の Web 検索（複数エンジンの横断検索ライブラリ）
+docs = ["markitdown[docx,xlsx,pptx]>=0.1", "pypdf>=4"]   # v3.1: 文書解析
 jev = ["typesafe-sdk>=0.1.0"]
 mcp = ["mcp>=1.0.0"]
 sandbox = ["e2b-code-interpreter>=1.0.0"]
@@ -1290,3 +1291,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-19 | §4, §5, §9.4 | Embedding を実装: `EmbeddingCapability.embed` に `task` / `normalize` / `timeout` を追加、`EmbeddingResponse.normalized` を追加。プロセス内のローカル埋め込み（fastembed、extras `[local]`、Mnemo と同じモデル）を追加 | 実装設計書 §14 |
 | D-20 | §9.4 | 独自実装の provider_name をエンジン/サービス名に（`fastembed`・`ddgs`）。Search を ddgs（extras `[search]`、キー不要の横断検索）で実装 | 実装設計書 §14.4・§15 |
 | D-21 | §2 | Rerank をローカル（fastembed のクロスエンコーダー、既定 bge-reranker-v2-m3-int8）で実装。スコアは 0〜1（シグモイド） | 実装設計書 §16 |
+| D-22 | §4, §5 | DocParser を実装（pypdf / markitdown、MIME で振り分け）。`parse(mime_type=None)` で拡張子から判定、`ParsedDocument.mime_type` / `empty_reason` を追加 | 実装設計書 §17 |
