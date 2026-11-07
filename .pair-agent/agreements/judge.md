@@ -1,7 +1,7 @@
 ---
 sprint_id: 680d057e-aa47-4d4f-8655-32d13eb30ecf
 version: 2
-status: reviewing
+status: completed
 created_at: 2026-11-08T04:00:00+09:00
 updated_at: 2026-11-08T04:00:00+09:00
 domain_tags: [python-sdk, judge, ollama, decision-model]
@@ -43,3 +43,4 @@ JudgeCapability を Ollama の decision モデル（/v1/systemone）で実装し
 
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 実装・live 確認。Ollama 0.40.6 でのモデル名の変化に対応
+- 師匠（原文）: 「OK.進めてください」→ スプリント完了
