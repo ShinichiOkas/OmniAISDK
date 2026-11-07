@@ -1,6 +1,6 @@
 ---
 sprint_id: 127bc088-cabd-4dd7-929c-6f73c136c5c0
-version: 2
+version: 3
 status: reviewing
 created_at: 2026-11-08T01:00:00+09:00
 updated_at: 2026-11-08T01:00:00+09:00
@@ -43,3 +43,5 @@ RerankCapability をローカル（fastembed のクロスエンコーダー）�
 
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 実装・live 確認（キー不要の RAG を end-to-end）
+- 師匠（原文 2026-11-08）: 「重複モデルは削除しておいて」→ ~/Library/Caches/omni_ai/models から埋め込みモデル（Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q、共有 blobs 18/・e2/ 計 240MB）を削除。.refs で参照元がこのモデルだけと確認してから削除し、rerank モデルがオフラインで動くことを確認（561MB 残存）
+- v3 [2026-11-08]: R-04 解消
