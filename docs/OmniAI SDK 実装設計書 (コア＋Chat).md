@@ -696,7 +696,7 @@ Ollama を先にするのは、ローカルで無料で試せることと、ワ�
 | R-05 | サーバー側ツールの実行結果（コード実行の出力・検索クエリ）を、共通型として出す項目が無い | `provider_state` にだけ保持する | 利用者から要望が出たら、`server_tool_results` を追加する |
 | R-06 | Gemini の組み込みツールと関数の併用は Preview 機能 | 併用したときだけフラグを付ける | GA になったら注記を外す |
 | R-07 | 師匠の Mac にある Ollama のローカルモデルでは、ツール呼び出しを実測できない（§8.5） | Ollama の tools の経路は、資料と記録した応答だけで検証する | **決定（2026-11-07）**: `gemma4:31b-cloud` を使う。**実施済み**: 応答を記録して契約テストの fixtures にし、live テスト 5 件（ツールループ・ストリーム・構造化出力・フォールバック・検索代行）が通った（§12.2）。ローカル実行の検証ではない点は残る |
-| R-08 | このセッションの実行環境からは、Gemini の `generateContent` を実測できなかった（`models.list`・`countTokens` は成功したが、`generateContent` は空本文の 404 か、無応答のタイムアウトになった。2026-11-07・Mac） | 資料で確認した事実だけで設計し、[未実測] と明記した | **決定（2026-11-07）**: いったん保留し、実装を先に進める。M7 までに解決する。原因は実行環境のネットワーク制限と推測しているが、**未確定** |
+| R-08 | Gemini `generateContent` の実測（当初は無応答・本文が空の 404 で実測できなかった） | **2026-11-07 に切り分け済み**: 原因はおもに**モデル**。`gemini-3.8-flash` はこのキーでは無応答のままタイムアウトし、`gemini-3.1-flash-lite` は SDK 経由でテキスト・ストリーム・並列ツール呼び出し（thought signature の往復を含む）が通った。空の 404 は一時的な現象で再現しなかった（原因は未確定）。Web 検索（google_search）は 429 quota 超過 | 既定モデルの扱いを師匠と決める。Web 検索の live 確認は quota の状況次第 |
 
 ---
 
@@ -736,7 +736,7 @@ Ollama:
 | `gemma4:*-mlx` への `/api/chat` | HTTP 500 `mlx runner failed: unsupported architecture`（ストリームでも 500） |
 | Gemini `models.list`（このキー） | 成功。`gemini-3.8-flash` などを確認 |
 | Gemini `countTokens` | 成功（HTTP 200） |
-| Gemini `generateContent` | **実測できず**（R-08） |
+| Gemini `generateContent` | 当初は実測できず。後に切り分け: `gemini-3.1-flash-lite` はテキスト 10.9 秒・ストリーム 2.4 秒で成功、`gemini-3.8-flash` は 90 秒×2 回でタイムアウト、google_search は 429（quota 超過）。SDK の live テスト 3 件中 2 件（テキスト、並列ツール＋署名の往復）が通過 |
 | Ollama `gemma4:31b-cloud` の `/api/chat`（記録は `tests/fixtures/ollama/`） | ツール呼び出しに `id`（`call_` + 8 文字）が付く（資料に無い）。ストリームではツール呼び出しが 1 件ずつ完成形で届く。ツール呼び出しで終わっても `done_reason` は `"stop"`。**`format` に JSON Schema を渡しても ```json のコードフェンスに包まれて返った** |
 | SDK 経由の live テスト（`OMNI_LIVE_OLLAMA=gemma4:31b-cloud`） | 5 件通過（ツールループ、ストリーム＋構造化出力、到達不能な Gemini からのフォールバック、WEB_SEARCH 代行、接続失敗の例外） |
 
