@@ -1,0 +1,13 @@
+{
+ "model": "tev1:0.8b",
+ "state": "x",
+ "questions": {
+  "q": {
+   "type": "choice",
+   "instructions": "i",
+   "criteria": {
+    "only": "one"
+   }
+  }
+ }
+}

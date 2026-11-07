@@ -88,7 +88,8 @@ OmniAISDK/
 | Rerank: fastembed（プロセス内・多言語クロスエンコーダー） | 実装済み・実物で確認済み（キー不要の RAG: 検索 → 埋め込み → 再順位付け） |
 | DocParser: pypdf（PDF）/ markitdown（Office・RTF） | 実装済み・実物の文書ファイルで確認済み |
 | MCP: 公式 SDK 2.x（stdio / streamable-http） | 実装済み・実際の MCP サーバーで確認済み（Ollama から MCP ツールを呼ぶ live 確認） |
-| その他の 4 領域（Judge / Image / Audio / Sandbox） | 抽象インタフェースのみ |
+| Judge: Ollama の decision モデル（`/v1/systemone`、要 Ollama 0.35+） | 実装済み・実物で確認済み（tev1:0.8b / kev:0.8b-q8_0） |
+| その他の 3 領域（Image / Audio / Sandbox） | 抽象インタフェースのみ |
 
 ## 使い方
 

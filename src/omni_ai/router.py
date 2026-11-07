@@ -39,6 +39,7 @@ from .types import (
     ChatMessage,
     ChatResponse,
     EmbeddingResponse,
+    JudgeResponse,
     ParsedDocument,
     RerankResponse,
     ResponseMeta,
@@ -301,6 +302,34 @@ class InstrumentedDocumentParser(DocumentParserCapability):
         await self.inner.aclose()
 
 
+class InstrumentedJudge(JudgeCapability):
+    """OmniClient.judge が返すプロキシ。時間を記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: JudgeCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+
+    def evaluate(self, state: Any, questions: Any, **kwargs: Any) -> JudgeResponse:
+        started = time.perf_counter()
+        res = self.inner.evaluate(state, questions, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    async def aevaluate(self, state: Any, questions: Any, **kwargs: Any) -> JudgeResponse:
+        started = time.perf_counter()
+        res = await self.inner.aevaluate(state, questions, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
 # ============================================================================ Fallback
 
 
@@ -475,6 +504,7 @@ class OmniClient:
         )
         self._search_proxy = InstrumentedSearch(search, self._recorder) if search is not None else None
         self._rerank_proxy = InstrumentedRerank(rerank, self._recorder) if rerank is not None else None
+        self._judge_proxy = InstrumentedJudge(judge, self._recorder) if judge is not None else None
         self._doc_parser_proxy = (
             InstrumentedDocumentParser(doc_parser, self._recorder) if doc_parser is not None else None
         )
@@ -499,8 +529,9 @@ class OmniClient:
 
     @property
     def judge(self) -> JudgeCapability:
-        cap: JudgeCapability = self._get("judge")
-        return cap
+        if self._judge_proxy is None:
+            raise CapabilityNotConfiguredError("judge provider is not configured.", provider="omni")
+        return self._judge_proxy
 
     @property
     def image(self) -> ImageCapability:

@@ -1,0 +1,35 @@
+{
+ "model": "kev:0.8b-q8_0",
+ "state": {
+  "query": "猫の睡眠時間は？",
+  "context": "猫は1日に12〜16時間眠る。"
+ },
+ "questions": {
+  "is_grounded": {
+   "type": "noul",
+   "instructions": "コンテキストに回答の根拠が含まれているか",
+   "criteria": {
+    "false": "根拠が無い",
+    "true": "根拠がある"
+   }
+  },
+  "audience": {
+   "type": "choice",
+   "instructions": "最適な説明トーン",
+   "criteria": {
+    "executive": "経営層向け",
+    "engineer": "技術者向け",
+    "general": "一般向け"
+   }
+  },
+  "urgency": {
+   "type": "score",
+   "instructions": "対応の緊急度",
+   "criteria": [
+    "Routine",
+    "Soon",
+    "Immediate"
+   ]
+  }
+ }
+}

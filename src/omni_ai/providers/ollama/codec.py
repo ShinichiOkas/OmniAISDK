@@ -194,7 +194,9 @@ def parse_chat_response(data: Mapping[str, Any], req: ChatRequest) -> ChatRespon
         reasoning=msg.get("thinking") or None,
         tool_calls=calls,
         finish_reason=_finish(data.get("done_reason"), bool(calls)),
-        meta=ResponseMeta(provider=PROVIDER, model=data.get("model") or req.model, usage=_usage(data)),
+        # 応答の model は版で変わる（実測: 0.40.6 は "gemma4:31b-cloud" を "gemma4:31b" で返す）
+        # → 指定した名前を記録する（単価の判定で :cloud を見失わないため）
+        meta=ResponseMeta(provider=PROVIDER, model=req.model, usage=_usage(data)),
     )
 
 
@@ -272,9 +274,7 @@ class OllamaStreamState:
                     reasoning="".join(self.reasoning) or None,
                     tool_calls=list(self.tool_calls),
                     finish_reason=finish,
-                    meta=ResponseMeta(
-                        provider=PROVIDER, model=obj.get("model") or self.req.model, usage=_usage(obj)
-                    ),
+                    meta=ResponseMeta(provider=PROVIDER, model=self.req.model, usage=_usage(obj)),
                 )
                 events.append(
                     StreamEvent(

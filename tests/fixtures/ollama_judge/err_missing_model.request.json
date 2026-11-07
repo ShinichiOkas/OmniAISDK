@@ -1,0 +1,14 @@
+{
+ "model": "no-such-decision",
+ "state": "x",
+ "questions": {
+  "q": {
+   "type": "noul",
+   "instructions": "i",
+   "criteria": {
+    "false": "f",
+    "true": "t"
+   }
+  }
+ }
+}

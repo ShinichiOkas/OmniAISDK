@@ -79,7 +79,6 @@ class OllamaEmbeddingAdapter(BaseHttpEmbeddingAdapter):
         return EmbedBatchResult(
             vectors=[list(map(float, v)) for v in data.get("embeddings") or []],
             prompt_tokens=int(data.get("prompt_eval_count") or 0),
-            model=data.get("model"),
         )
 
     def _map_error(

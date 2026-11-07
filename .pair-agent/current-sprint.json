@@ -1,7 +1,7 @@
 {
-  "sprint_id": "21bb322a-3752-422d-a286-5a427d646892",
+  "sprint_id": "680d057e-aa47-4d4f-8655-32d13eb30ecf",
   "status": "reviewing",
-  "goal": "MCP（mcp SDK 2.x）",
+  "goal": "Judge（Ollama decision モデル）",
   "created_at": "2026-11-07T15:31:05+09:00",
-  "agreement_path": ".pair-agent/agreements/mcp.md"
+  "agreement_path": ".pair-agent/agreements/judge.md"
 }

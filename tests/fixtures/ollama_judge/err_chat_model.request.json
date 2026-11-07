@@ -1,0 +1,14 @@
+{
+ "model": "gemma4:31b-cloud",
+ "state": "x",
+ "questions": {
+  "q": {
+   "type": "noul",
+   "instructions": "i",
+   "criteria": {
+    "false": "f",
+    "true": "t"
+   }
+  }
+ }
+}

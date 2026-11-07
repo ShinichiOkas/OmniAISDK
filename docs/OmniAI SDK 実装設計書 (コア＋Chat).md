@@ -885,3 +885,26 @@ Ollama:
 
 **実測（2026-11-08・Mac）**: テスト用サーバーを stdio で起動して、ツール一覧・呼び出し・エラー・画像・待ち時間切れを確認。Ollama（gemma4:31b-cloud）が MCP の weather ツールを 2 回呼び、東京と大阪の天気を答えた（live）。mcp 2.x では FastMCP が `MCPServer` に改名され、streamable-http は `httpx2` を使う。
 
+---
+
+## 19. Judge（2026-11-08 追加スプリント）
+
+師匠の指示: 「OllamaにJudgeモデルがあるはずなのでそれで試して」。AI は当初 LLM-as-a-Judge を提案していた（前提の訂正）。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| アダプター | `OllamaJudgeAdapter`（provider_name `"ollama"`）。`POST /v1/systemone` | Ollama の decision モデル（Jev に倣った API の形）。一次資料: docs.ollama.com/capabilities/decision.md |
+| 前提 | Ollama v0.35.0 以上、capabilities に `decision` を持つモデル | 師匠の Mac は Homebrew 版 0.17.7 が動いていた → 師匠の決定でアプリ版 0.40.6 に切り替え |
+| モデル | 既定なし（必須）。live は `tev1:0.8b`（834MB）と `kev:0.8b-q8_0`（812MB） | 師匠の選択（nimble 9.5GB は見送り） |
+| 型 | `NoulQuestion.criteria`（"false" / "true" の説明、省略可）を追加 | 実測: API は noul にも criteria を持つ（省略も可） |
+| 結果の写像 | noul: value=bool（p≥0.5）・probability=p・distribution={true,false}。choice: value=選択肢・probability=その確率・distribution=全選択肢・confidence。score: value=段階番号の確率加重平均・distribution=段階名ごとの確率・probability=最も確からしい段階の確率・confidence | 実測の応答（score は legend と probabilities を返す） |
+| 送信前の検査 | 質問 1〜64 件、choice 2〜26、score 2〜10、空の state | 資料と実測（サーバーも 400 を返す）。質問名の制限はローカルでは掛からないので検査しない |
+| エラー | チャット用モデル → 400 "not a decision model" → `UnsupportedFeatureError`、未知のモデル → `NotFoundError`、その他の 400 → `InvalidRequestError` | 実測 |
+
+**実測（2026-11-08・Mac、Ollama.app 0.40.6）**: tev1 / kev の両方で、根拠のある文脈は根拠の無い文脈より「根拠あり」の確率が高く、障害の文は深刻度 high と判定された。
+
+### 19.1 Ollama のサーバーを 0.40.6 に替えて分かったこと
+
+- **応答の `model` が `gemma4:31b-cloud` から `gemma4:31b` に変わった**（`remote_model` / `remote_host` も無くなった）。SDK が応答のモデル名を記録していたため、クラウドモデルを無料と誤判定していた → Ollama のアダプター（チャット・埋め込み・Judge）は、**呼び出し側が指定したモデル名を記録する**ように修正（回帰テストあり）
+- それ以外の Ollama の live テスト（チャット・埋め込み・検索代行・MCP）は 0.40.6 でもすべて通過
+

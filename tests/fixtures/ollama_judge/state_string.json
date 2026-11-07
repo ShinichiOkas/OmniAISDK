@@ -1,0 +1,1 @@
+{"model":"tev1:0.8b","answers":{"severity":{"type":"choice","choice":"high","probabilities":{"low":0.0536922615608785,"high":0.9463077384391215},"confidence":0.6981209579927612}},"usage":{"input_tokens":119,"output_tokens":0},"prompt_eval_cached_count":0}

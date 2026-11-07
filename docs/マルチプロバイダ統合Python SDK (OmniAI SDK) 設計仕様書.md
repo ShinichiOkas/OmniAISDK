@@ -32,7 +32,7 @@
 | 領域 / 役割 | インターフェース | 主要対応プロバイダ | コア仕様（共通積集合） | プロバイダ固有拡張 |
 | :---- | :---- | :---- | :---- | :---- |
 | **1\. テキスト・マルチモーダル対話** | `ChatCapability` | OpenAI, Anthropic, Gemini, Ollama | マルチモーダル `messages`, `tools`, `response_schema`, 同期/非同期 `StreamEvent` | Prompt Caching、Thinking Budget、推論effort指定 |
-| **2\. 判定モデル (Judge)** | `JudgeCapability` | TypeSafe Jev, OpenAI Moderation, 汎用LLM-as-a-Judge | `state` に対する型付き質問（`Noul`, `Choice`, `Score`）と較正済み確率値の返却 | Jevの並列一括評価、画像領域判定 (Box) |
+| **2\. 判定モデル (Judge)** | `JudgeCapability` | TypeSafe Jev, **Ollama decision モデル（tev1 / kev / nimble、v3.1 で実装）**, OpenAI Moderation, 汎用LLM-as-a-Judge | `state` に対する型付き質問（`Noul`, `Choice`, `Score`）と較正済み確率値の返却 | Jevの並列一括評価、画像領域判定 (Box) |
 | **3\. 画像生成 (Image)** | `ImageCapability` | Ollama (MLX Flux等), OpenAI (DALL-E 3 / GPT-Image), Gemini (Imagen 3\) | `prompt`, `size`, `n`, 出力バイナリ / ストリーム保存の統一 | Negative Prompt、Seed固定、スタイル指定 |
 | **4\. 音声処理 (Audio)** | `AudioCapability` | OpenAI, Gemini, ローカルWhisper / Kokoro | TTS (`speak` / `aspeak`), STT (`transcribe` / `atranscribe`), `MediaSource` 対応 | 話速調整、ワード単位タイムスタンプ、双方向WebSocket |
 | **5\. 埋め込み (Embed)** | `EmbeddingCapability` | OpenAI, Gemini, Ollama, Voyage AI | `texts: List[str]` から `List[List[float]]` へのベクトル変換 | 出力次元数の圧縮指定 (`dimensions`) |
@@ -276,6 +276,7 @@ class StreamEvent(BaseModel):
 class NoulQuestion(BaseModel):
     kind: Literal["noul"] = "noul"
     instructions: str
+    criteria: Optional[Dict[Literal["false", "true"], str]] = None   # v3.1: 実測で API が持つ（省略可）
 
 class ChoiceQuestion(BaseModel):
     kind: Literal["choice"] = "choice"
@@ -1294,3 +1295,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-21 | §2 | Rerank をローカル（fastembed のクロスエンコーダー、既定 bge-reranker-v2-m3-int8）で実装。スコアは 0〜1（シグモイド） | 実装設計書 §16 |
 | D-22 | §4, §5 | DocParser を実装（pypdf / markitdown、MIME で振り分け）。`parse(mime_type=None)` で拡張子から判定、`ParsedDocument.mime_type` / `empty_reason` を追加 | 実装設計書 §17 |
 | D-23 | §5 | MCP を実装（mcp SDK 2.x、stdio / streamable-http）。`acall_tool` は `MCPToolResult` を返し、`timeout` を追加 | 実装設計書 §18 |
+| D-24 | §2, §4 | Judge を Ollama の decision モデル（`/v1/systemone`、Jev に倣った API）で実装。`NoulQuestion.criteria` を追加。VerdictResult の各型での意味を定義 | 実装設計書 §19 |

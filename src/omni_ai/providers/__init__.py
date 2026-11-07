@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .mcp import MCPClientAdapter
     from .ollama import OllamaChatAdapter
     from .ollama.embedding import OllamaEmbeddingAdapter
+    from .ollama.judge import OllamaJudgeAdapter
     from .pypdf import PyPDFDocumentParser
 
 _LAZY = {
@@ -30,6 +31,7 @@ _LAZY = {
     "FastEmbedRerankAdapter": ".fastembed.rerank",
     "OllamaChatAdapter": ".ollama",
     "OllamaEmbeddingAdapter": ".ollama.embedding",
+    "OllamaJudgeAdapter": ".ollama.judge",
 }
 
 __all__ = [
@@ -43,6 +45,7 @@ __all__ = [
     "MimeRoutingDocumentParser",
     "OllamaChatAdapter",
     "OllamaEmbeddingAdapter",
+    "OllamaJudgeAdapter",
     "PyPDFDocumentParser",
     "default_document_parser",
 ]

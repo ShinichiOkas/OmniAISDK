@@ -1,0 +1,14 @@
+{
+ "model": "tev1:0.8b",
+ "state": "The server returns HTTP 500 on every request since the deploy.",
+ "questions": {
+  "severity": {
+   "type": "choice",
+   "instructions": "Severity of the issue",
+   "criteria": {
+    "low": "cosmetic",
+    "high": "service impacting"
+   }
+  }
+ }
+}

@@ -367,3 +367,25 @@ def test_base_url_from_ollama_host(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OMNI_OLLAMA_BASE_URL", raising=False)
     monkeypatch.setenv("OLLAMA_HOST", "0.0.0.0")
     assert OllamaChatAdapter(default_model="m").base_url == "http://127.0.0.1:11434"
+
+
+@respx.mock
+def test_cloud_model_keeps_requested_name_for_pricing() -> None:
+    # 実測 (Ollama 0.40.6): ":cloud" / "-cloud" のモデルでも、応答の model は "gemma4:31b"（接尾辞なし）
+    respx.post(f"{BASE}/api/chat").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "model": "gemma4:31b",
+                "message": {"role": "assistant", "content": "OK"},
+                "done": True,
+                "done_reason": "stop",
+            },
+        )
+    )
+    from omni_ai import OmniClient
+
+    ai = OmniClient(chat=adapter())
+    res = ai.chat.generate([ChatMessage.user("hi")])
+    assert res.meta.model == "gemma4:31b-cloud"
+    assert res.meta.estimated_cost_usd is None and ai.telemetry.unpriced_calls == 1

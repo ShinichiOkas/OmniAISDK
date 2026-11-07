@@ -35,6 +35,8 @@ __all__ = [
 class NoulQuestion(BaseModel):
     kind: Literal["noul"] = "noul"
     instructions: str
+    # "false" / "true" それぞれの説明（省略可。実測: Ollama の decision モデルは省略を受け付けた）
+    criteria: dict[Literal["false", "true"], str] | None = None
 
 
 class ChoiceQuestion(BaseModel):
@@ -53,6 +55,14 @@ JudgeQuestion = Union[NoulQuestion, ChoiceQuestion, ScoreQuestion]  # noqa: UP00
 
 
 class VerdictResult(BaseModel):
+    """判定 1 件の結果。
+
+    - noul: ``value`` は bool（true の確率 >= 0.5）、``probability`` は true の確率
+    - choice: ``value`` は選ばれた選択肢、``probability`` はその確率、``distribution`` は全選択肢の確率
+    - score: ``value`` は段階番号（0 始まり）の確率加重平均、``distribution`` は段階名ごとの確率、
+      ``probability`` は最も確率の高い段階の確率
+    """
+
     value: bool | str | float
     probability: float
     distribution: dict[str, float] | None = None

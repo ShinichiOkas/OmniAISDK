@@ -1,0 +1,13 @@
+{
+ "model": "tev1:0.8b",
+ "state": "x",
+ "questions": {
+  "q": {
+   "type": "bogus",
+   "instructions": "i",
+   "criteria": {
+    "a": "b"
+   }
+  }
+ }
+}
