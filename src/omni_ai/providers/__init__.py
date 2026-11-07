@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .gemini import GeminiChatAdapter
     from .ollama import OllamaChatAdapter
 
-__all__ = ["OllamaChatAdapter"]
+__all__ = ["GeminiChatAdapter", "OllamaChatAdapter"]
 
 
 def __getattr__(name: str) -> Any:
@@ -15,4 +16,8 @@ def __getattr__(name: str) -> Any:
         from .ollama import OllamaChatAdapter
 
         return OllamaChatAdapter
+    if name == "GeminiChatAdapter":
+        from .gemini import GeminiChatAdapter
+
+        return GeminiChatAdapter
     raise AttributeError(name)
