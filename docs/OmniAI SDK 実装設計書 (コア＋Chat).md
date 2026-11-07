@@ -780,7 +780,7 @@ Ollama:
 | :--- | :--- | :--- | :--- |
 | `GeminiEmbeddingAdapter` | `batchEmbedContents`（100 件ずつ分割。上限は [未検証]） | `gemini-embedding-2`（3072 次元。`usageMetadata` を返す） | 記録＋live |
 | `OllamaEmbeddingAdapter` | `/api/embed`（256 件ずつ分割） | なし（必須）。live は `nomic-embed-text`（768 次元） | 記録＋live |
-| `LocalEmbeddingAdapter` | プロセス内の **fastembed（ONNX）**。extras `[local]` | **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`**（384 次元。Mnemo と同じ） | live（Mnemo のキャッシュを共有） |
+| `FastEmbedEmbeddingAdapter`（provider_name `"fastembed"`） | プロセス内の **fastembed（ONNX）**。extras `[local]` | **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`**（384 次元。Mnemo と同じ） | live（Mnemo のキャッシュを共有） |
 
 ### 14.2 共通の決まり（`EmbeddingCapability`）
 
@@ -798,7 +798,11 @@ Ollama:
 ### 14.3 ローカル実装（Mnemo 互換）
 
 - Mnemo の `src/mnemo/core/embedding.py` と同じく、fastembed の出力（未正規化）を L2 正規化する。初回の `embed` で読み込み（スレッド安全）、非同期版はスレッドで実行する
-- 既定のキャッシュは OS 標準（platformdirs）の `.../omni_ai/models`。`cache_dir=MNEMO_CACHE_DIR`（`~/.mnemo/models`）を渡せば、Mnemo と同じモデルファイルを共有し、再ダウンロードしない。`local_files_only=True` でネットワークに出ない
+- 既定のキャッシュは OS 標準（platformdirs）の `.../omni_ai/models`。既存のキャッシュ（例: Mnemo の `~/.mnemo/models`）を `cache_dir=` に渡せば、同じモデルファイルを共有し、再ダウンロードしない。`local_files_only=True` でネットワークに出ない
 - **実測（2026-11-07・Mac）**: Mnemo の `EmbeddingModel.batch_encode` と同じ 3 文で比べ、cos = 0.9999999、要素ごとの差は最大 1e-4。fastembed のバージョン違い（Mnemo 0.8.0 / 本 SDK の開発環境 0.9.1）による差と推測（未確認）
 - fastembed は onnxruntime（バイナリ wheel）に依存するため、コア依存には入れず extras にした（ADR-02 の明確化・ADR-03 の範囲内）
+
+### 14.4 命名（師匠の決定 2026-11-08）
+
+プロバイダーの API ではない実装（Mnemo と同様の実装）の provider_name とクラス名は、**実際に処理を担うエンジン/サービス名**にする（`"fastembed"`、Web 検索なら `"duckduckgo"`）。「Mnemo」という名称はコードに出さない（由来の記録は設計書・合意ドキュメントに残す）。これに伴い `LocalEmbeddingAdapter`（`"local"`）を `FastEmbedEmbeddingAdapter`（`"fastembed"`）に改名し、定数 `MNEMO_CACHE_DIR` を削除した。単価表は `FREE_PROVIDERS = {"fastembed", "duckduckgo"}` を無料とみなす。
 

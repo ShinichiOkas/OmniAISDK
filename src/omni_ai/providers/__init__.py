@@ -6,24 +6,24 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .fastembed import FastEmbedEmbeddingAdapter
     from .gemini import GeminiChatAdapter
     from .gemini.embedding import GeminiEmbeddingAdapter
-    from .local import LocalEmbeddingAdapter
     from .ollama import OllamaChatAdapter
     from .ollama.embedding import OllamaEmbeddingAdapter
 
 _LAZY = {
     "GeminiChatAdapter": ".gemini",
     "GeminiEmbeddingAdapter": ".gemini.embedding",
-    "LocalEmbeddingAdapter": ".local",
+    "FastEmbedEmbeddingAdapter": ".fastembed",
     "OllamaChatAdapter": ".ollama",
     "OllamaEmbeddingAdapter": ".ollama.embedding",
 }
 
 __all__ = [
+    "FastEmbedEmbeddingAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",
-    "LocalEmbeddingAdapter",
     "OllamaChatAdapter",
     "OllamaEmbeddingAdapter",
 ]

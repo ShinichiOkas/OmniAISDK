@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# プロセス内のローカル埋め込み（Mnemo と同じ fastembed / ONNX）。onnxruntime はバイナリ wheel なのでコアには入れない
+# プロセス内のローカル埋め込み（fastembed / ONNX）。onnxruntime はバイナリ wheel なのでコアには入れない
 local = ["fastembed>=0.4"]
 dev = [
     "pytest>=8.0.0",

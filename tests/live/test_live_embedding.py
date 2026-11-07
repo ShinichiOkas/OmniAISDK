@@ -2,7 +2,7 @@
 
 - OMNI_LIVE_GEMINI=1（GEMINI_API_KEY）
 - OMNI_LIVE_OLLAMA_EMBED=<model>（例: nomic-embed-text）
-- OMNI_LIVE_LOCAL=1（fastembed）。OMNI_LIVE_LOCAL_CACHE で cache_dir を指定（Mnemo と共有: ~/.mnemo/models）
+- OMNI_LIVE_FASTEMBED=1。OMNI_LIVE_FASTEMBED_CACHE で cache_dir を指定（既存のモデルキャッシュを共有する場合）
 """
 
 import math
@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from omni_ai.providers.fastembed import FastEmbedEmbeddingAdapter
 from omni_ai.providers.gemini.embedding import GeminiEmbeddingAdapter
-from omni_ai.providers.local import LocalEmbeddingAdapter
 from omni_ai.providers.ollama.embedding import OllamaEmbeddingAdapter
 
 pytestmark = pytest.mark.live
@@ -45,10 +45,10 @@ async def test_live_ollama_embedding() -> None:
     await a.aclose()
 
 
-@pytest.mark.skipif(not os.environ.get("OMNI_LIVE_LOCAL"), reason="set OMNI_LIVE_LOCAL=1")
-def test_live_local_embedding_matches_mnemo_model() -> None:
-    cache = os.environ.get("OMNI_LIVE_LOCAL_CACHE")
-    a = LocalEmbeddingAdapter(
+@pytest.mark.skipif(not os.environ.get("OMNI_LIVE_FASTEMBED"), reason="set OMNI_LIVE_FASTEMBED=1")
+def test_live_fastembed_embedding() -> None:
+    cache = os.environ.get("OMNI_LIVE_FASTEMBED_CACHE")
+    a = FastEmbedEmbeddingAdapter(
         cache_dir=Path(cache).expanduser() if cache else None, local_files_only=bool(cache)
     )
     res = a.embed(TEXTS)

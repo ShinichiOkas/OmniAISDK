@@ -15,8 +15,8 @@ from omni_ai import (
     UnsupportedFeatureError,
 )
 from omni_ai._http import RetryPolicy
+from omni_ai.providers.fastembed import DEFAULT_FASTEMBED_MODEL, FastEmbedEmbeddingAdapter
 from omni_ai.providers.gemini.embedding import DEFAULT_EMBEDDING_MODEL, GeminiEmbeddingAdapter
-from omni_ai.providers.local import DEFAULT_LOCAL_MODEL, LocalEmbeddingAdapter
 from omni_ai.providers.ollama.embedding import OllamaEmbeddingAdapter
 
 GBASE = "https://gemini.test/v1beta"
@@ -158,7 +158,7 @@ def test_ollama_recorded_errors(fixture_bytes, name: str, status: int, exc: type
         ollama(check_capabilities=False, truncate=False).embed("x")
 
 
-# ------------------------------------------------------------------ Local (fastembed を偽物に差し替え)
+# ------------------------------------------------------------------ fastembed（モデルを偽物に差し替え）
 
 
 class FakeTextEmbedding:
@@ -173,37 +173,39 @@ class FakeTextEmbedding:
             yield [float(len(t)), 3.0, 4.0]
 
 
-def local(**kw) -> LocalEmbeddingAdapter:
-    return LocalEmbeddingAdapter(model_factory=FakeTextEmbedding, cache_dir="/tmp/omni-test-models", **kw)
+def fe(**kw) -> FastEmbedEmbeddingAdapter:
+    return FastEmbedEmbeddingAdapter(model_factory=FakeTextEmbedding, cache_dir="/tmp/omni-test-models", **kw)
 
 
-def test_local_lazy_load_normalize_and_mnemo_defaults(tmp_path) -> None:
+def test_fastembed_lazy_load_normalize_and_defaults(tmp_path) -> None:
     FakeTextEmbedding.instances = 0
-    a = LocalEmbeddingAdapter(model_factory=FakeTextEmbedding, cache_dir=tmp_path, threads=2)
+    a = FastEmbedEmbeddingAdapter(model_factory=FakeTextEmbedding, cache_dir=tmp_path, threads=2)
     assert not a.is_loaded
     res = a.embed(["ab", "abcd"])
     assert a.is_loaded and FakeTextEmbedding.instances == 1
     a.embed("again")
     assert FakeTextEmbedding.instances == 1  # 1 回だけ読み込む
-    assert res.meta.provider == "local" and res.meta.model == DEFAULT_LOCAL_MODEL
-    assert DEFAULT_LOCAL_MODEL == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    assert res.meta.provider == "fastembed" and res.meta.model == DEFAULT_FASTEMBED_MODEL
+    assert DEFAULT_FASTEMBED_MODEL == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     assert all(abs(norm(v) - 1.0) < 1e-9 for v in res.vectors) and res.normalized
     assert a._model.kwargs["cache_dir"] == str(tmp_path) and a._model.kwargs["threads"] == 2
 
 
-def test_local_rejects_other_model_and_dimensions() -> None:
+def test_fastembed_rejects_other_model_and_dimensions() -> None:
     with pytest.raises(UnsupportedFeatureError):
-        local().embed("x", model="BAAI/bge-small-en-v1.5")
+        fe().embed("x", model="BAAI/bge-small-en-v1.5")
     with pytest.raises(UnsupportedFeatureError, match="fixed 3"):
-        local().embed("x", dimensions=2)
+        fe().embed("x", dimensions=2)
     with pytest.raises(InvalidRequestError):
-        local().embed([""])
+        fe().embed([""])
 
 
-async def test_local_async_and_client_telemetry() -> None:
-    ai = OmniClient(embedding=local())
+async def test_fastembed_async_and_client_telemetry() -> None:
+    ai = OmniClient(embedding=fe())
     res = await ai.embedding.aembed(["a", "bb"])
     assert len(res.vectors) == 2
-    assert ai.telemetry.history[0].provider == "local" and ai.telemetry.history[0].estimated_cost_usd == 0.0
+    assert (
+        ai.telemetry.history[0].provider == "fastembed" and ai.telemetry.history[0].estimated_cost_usd == 0.0
+    )
     assert ai.telemetry.unpriced_calls == 0
     await ai.aclose()

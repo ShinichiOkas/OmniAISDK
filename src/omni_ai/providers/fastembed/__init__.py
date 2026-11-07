@@ -1,7 +1,6 @@
-"""LocalEmbeddingAdapter — プロセス内のローカル埋め込み（fastembed / ONNX）。
+"""FastEmbedEmbeddingAdapter — プロセス内のローカル埋め込み（fastembed / ONNX）。
 
-Mnemo の標準と同じ構成（師匠の指示 2026-11-07）:
-- モデル: ``sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2``（384 次元、多言語）
+- 既定モデル: ``sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2``（384 次元、多言語）
 - 出力: L2 正規化した float（sentence-transformers の ``normalize_embeddings=True`` 互換）
 
 依存は extras（``pip install "omni-ai-sdk[local]"``）。コア依存には入れない（ADR-02 / ADR-03）。
@@ -24,13 +23,11 @@ from ...exceptions import OmniError, UnsupportedFeatureError
 from ...types import EmbeddingResponse, ResponseMeta
 from .._embed_base import empty_response, l2_normalize, prepare_texts
 
-__all__ = ["DEFAULT_LOCAL_MODEL", "MNEMO_CACHE_DIR", "LocalEmbeddingAdapter"]
+__all__ = ["DEFAULT_FASTEMBED_MODEL", "FastEmbedEmbeddingAdapter"]
 
 logger = logging.getLogger("omni_ai")
 
-DEFAULT_LOCAL_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-# Mnemo が使っているキャッシュ。cache_dir に渡せば、同じモデルを再ダウンロードせずに共有できる
-MNEMO_CACHE_DIR = Path.home() / ".mnemo" / "models"
+DEFAULT_FASTEMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 ModelFactory = Callable[..., Any]
 
@@ -40,18 +37,18 @@ def _fastembed_factory(**kwargs: Any) -> Any:
         from fastembed import TextEmbedding
     except ImportError as exc:  # pragma: no cover - extras 未導入
         raise ImportError(
-            'LocalEmbeddingAdapter requires fastembed: pip install "omni-ai-sdk[local]"'
+            'FastEmbedEmbeddingAdapter requires fastembed: pip install "omni-ai-sdk[local]"'
         ) from exc
     return TextEmbedding(**kwargs)
 
 
-class LocalEmbeddingAdapter(EmbeddingCapability):
-    provider_name: ClassVar[str] = "local"
+class FastEmbedEmbeddingAdapter(EmbeddingCapability):
+    provider_name: ClassVar[str] = "fastembed"
 
     def __init__(
         self,
         *,
-        model: str = DEFAULT_LOCAL_MODEL,
+        model: str = DEFAULT_FASTEMBED_MODEL,
         cache_dir: Path | str | None = None,
         threads: int | None = None,
         local_files_only: bool = False,
@@ -59,7 +56,7 @@ class LocalEmbeddingAdapter(EmbeddingCapability):
         model_factory: ModelFactory | None = None,
     ) -> None:
         self.default_model: str = model
-        # 既定は OS 標準のキャッシュ（platformdirs）。Mnemo と共有するなら MNEMO_CACHE_DIR を渡す
+        # 既定は OS 標準のキャッシュ（platformdirs）。他のアプリとモデルを共有するなら、そのディレクトリを渡す
         self.cache_dir = (
             Path(cache_dir) if cache_dir else PlatformCompat.get_cache_dir(create=False) / "models"
         )
@@ -73,7 +70,7 @@ class LocalEmbeddingAdapter(EmbeddingCapability):
 
     @property
     def model_name(self) -> str:
-        return self.default_model or DEFAULT_LOCAL_MODEL
+        return self.default_model or DEFAULT_FASTEMBED_MODEL
 
     @property
     def is_loaded(self) -> bool:

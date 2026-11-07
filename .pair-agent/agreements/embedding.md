@@ -1,6 +1,6 @@
 ---
 sprint_id: 9ed8169e-c3cb-46d8-ad4a-ebdaf90198d7
-version: 3
+version: 4
 status: completed
 created_at: 2026-11-07T19:00:00+09:00
 updated_at: 2026-11-07T19:00:00+09:00
@@ -52,3 +52,5 @@ EmbeddingCapability を実装する。Gemini・Ollama・ローカル（プロセ
 - v2 [2026-11-07]: 3 アダプターを実装し、live で確認（Mnemo のベクトルとの比較 cos=0.9999999）
 - 師匠（原文）: 「レビューは省略、有益なスキルがあったらそれだけ反映」
 - v3 [2026-11-07]: スプリント完了。Skill を 4 件登録（ペア固有 2・プロジェクト固有 2）
+- 師匠（原文 2026-11-08）: 「ところで各機能においてプロバイダーのものでなくMnemo同様の物を選ぶときはプロバイダー名は何になる？Mnemoという名称は使わない方がいい。」→ 決定「エンジン/サービス名」「コードからは全部外す」（confirmed Skill: provider-naming-engine-name-no-mnemo）
+- v4 [2026-11-08]: LocalEmbeddingAdapter → FastEmbedEmbeddingAdapter（"fastembed"）、MNEMO_CACHE_DIR 削除

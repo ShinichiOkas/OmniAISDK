@@ -20,9 +20,13 @@ class ModelPrice(BaseModel):
     as_of: date | None = None  # 取得日
 
 
+# プロセス内の実装・キー不要の無料サービス（provider_name）
+FREE_PROVIDERS = frozenset({"fastembed", "duckduckgo"})
+
+
 def default_is_free(provider: str, model: str) -> bool:
-    """プロセス内のローカル実装と、ローカルの Ollama を無料とみなす（``:cloud`` は ollama.com 上で動く）。"""
-    if provider == "local":
+    """無料の実装とローカルの Ollama を無料とみなす（``:cloud`` は ollama.com 上で動く）。"""
+    if provider in FREE_PROVIDERS:
         return True
     return provider == "ollama" and not model.endswith((":cloud", "-cloud"))
 
