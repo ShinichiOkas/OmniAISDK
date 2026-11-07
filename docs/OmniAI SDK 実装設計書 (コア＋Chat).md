@@ -804,5 +804,25 @@ Ollama:
 
 ### 14.4 命名（師匠の決定 2026-11-08）
 
-プロバイダーの API ではない実装（Mnemo と同様の実装）の provider_name とクラス名は、**実際に処理を担うエンジン/サービス名**にする（`"fastembed"`、Web 検索なら `"duckduckgo"`）。「Mnemo」という名称はコードに出さない（由来の記録は設計書・合意ドキュメントに残す）。これに伴い `LocalEmbeddingAdapter`（`"local"`）を `FastEmbedEmbeddingAdapter`（`"fastembed"`）に改名し、定数 `MNEMO_CACHE_DIR` を削除した。単価表は `FREE_PROVIDERS = {"fastembed", "duckduckgo"}` を無料とみなす。
+プロバイダーの API ではない実装（Mnemo と同様の実装）の provider_name とクラス名は、**実際に処理を担うエンジン/サービス名**にする（`"fastembed"`、Web 検索なら `"ddgs"`。ddgs は既定で複数エンジンを横断するため、当初案の "duckduckgo" から師匠の決定で訂正）。「Mnemo」という名称はコードに出さない（由来の記録は設計書・合意ドキュメントに残す）。これに伴い `LocalEmbeddingAdapter`（`"local"`）を `FastEmbedEmbeddingAdapter`（`"fastembed"`）に改名し、定数 `MNEMO_CACHE_DIR` を削除した。単価表は `FREE_PROVIDERS = {"fastembed", "ddgs"}` を無料とみなす。
+
+---
+
+## 15. Search（2026-11-08 追加スプリント）
+
+師匠の指示: Search を ddgs（Mnemo の標準）で。provider_name は「エンジン/サービス名」→ ddgs が横断検索と判明し「"ddgs"（横断のまま）」。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| アダプター | `DDGSSearchAdapter`（provider_name `"ddgs"`、extras `[search]`） | API キー不要。Mnemo と同じライブラリ |
+| 既定 | backend `"auto"`、region `"ja-jp"`、safesearch `"on"`、timeout 10 秒 | Mnemo の既定と同じ。auto は 1 エンジンが止まっても他で返る |
+| 件数 | `max_results` を 1〜50 に丸める。URL の重複・URL 無しは除く | Mnemo の上限 50 |
+| 結果 0 件 | 空の結果で返す（例外にしない） | 実測: `DDGSException("No results found.")` |
+| 例外 | `RatelimitException` → `RateLimitError`、`TimeoutException` → `ProviderTimeoutError`、その他 → `ProviderOverloadedError`。`RetryPolicy`（既定 2 回・2 秒）で再試行 | ddgs の例外名で判定（ライブラリを import せずに写像できる） |
+| 非同期 | `asearch` はスレッドで実行 | ddgs は同期ライブラリ |
+| 計測 | `OmniClient.search` も計測プロキシで包む。`ai.tools` の検索代行もここを通るので、テレメトリに載る | |
+| 単価 | 0（`FREE_PROVIDERS`） | |
+| 残留リスク | 公式 API ではなく検索結果を読み取るライブラリなので、レート制限や仕様変更で止まりうる。Mnemo の `url_guard`（結果の URL の接続先判定）は取り込んでいない | 必要になったら、結果のフィルタを差し込める口を足す |
+
+**実測（2026-11-08・Mac）**: live テスト 2 件通過。Ollama（gemma4:31b-cloud）＋ `BuiltinTool.WEB_SEARCH` を ToolRunner に渡すと、ddgs で実際に検索して、その結果から最新の Python の版を答えた（end-to-end）。
 

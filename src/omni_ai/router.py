@@ -40,6 +40,7 @@ from .types import (
     ChatResponse,
     EmbeddingResponse,
     ResponseMeta,
+    SearchResponse,
     StreamEvent,
     ToolSpec,
 )
@@ -203,6 +204,34 @@ class InstrumentedEmbedding(EmbeddingCapability):
         res = await self.inner.aembed(texts, **kwargs)
         if res.vectors:
             self._recorder.record(res.meta, started)
+        return res
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
+class InstrumentedSearch(SearchCapability):
+    """OmniClient.search が返すプロキシ。時間を記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: SearchCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+
+    def search(self, query: str, **kwargs: Any) -> SearchResponse:
+        started = time.perf_counter()
+        res = self.inner.search(query, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    async def asearch(self, query: str, **kwargs: Any) -> SearchResponse:
+        started = time.perf_counter()
+        res = await self.inner.asearch(query, **kwargs)
+        self._recorder.record(res.meta, started)
         return res
 
     def close(self) -> None:
@@ -384,6 +413,7 @@ class OmniClient:
         self._embedding_proxy = (
             InstrumentedEmbedding(embedding, self._recorder) if embedding is not None else None
         )
+        self._search_proxy = InstrumentedSearch(search, self._recorder) if search is not None else None
 
     def _get(self, name: str) -> Any:
         cap = self._caps[name]
@@ -401,7 +431,7 @@ class OmniClient:
     def tools(self) -> ToolRunner:
         from .tools import ToolRunner
 
-        return ToolRunner(self.chat, search=self._caps["search"], sandbox=self._caps["sandbox"])  # type: ignore[arg-type]
+        return ToolRunner(self.chat, search=self._search_proxy, sandbox=self._caps["sandbox"])  # type: ignore[arg-type]
 
     @property
     def judge(self) -> JudgeCapability:
@@ -431,8 +461,9 @@ class OmniClient:
 
     @property
     def search(self) -> SearchCapability:
-        cap: SearchCapability = self._get("search")
-        return cap
+        if self._search_proxy is None:
+            raise CapabilityNotConfiguredError("search provider is not configured.", provider="omni")
+        return self._search_proxy
 
     @property
     def doc_parser(self) -> DocumentParserCapability:

@@ -1,7 +1,7 @@
 {
-  "sprint_id": "9ed8169e-c3cb-46d8-ad4a-ebdaf90198d7",
-  "status": "completed",
-  "goal": "Embedding（Gemini / Ollama / ローカル fastembed）",
+  "sprint_id": "f83df133-41d1-467c-8589-08418958ec41",
+  "status": "reviewing",
+  "goal": "Search（ddgs）",
   "created_at": "2026-11-07T15:31:05+09:00",
-  "agreement_path": ".pair-agent/agreements/embedding.md"
+  "agreement_path": ".pair-agent/agreements/search.md"
 }

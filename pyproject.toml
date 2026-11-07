@@ -29,6 +29,8 @@ dependencies = [
 [project.optional-dependencies]
 # プロセス内のローカル埋め込み（fastembed / ONNX）。onnxruntime はバイナリ wheel なのでコアには入れない
 local = ["fastembed>=0.4"]
+# キー不要の Web 検索（ddgs: 複数エンジンの横断検索ライブラリ）
+search = ["ddgs>=9.0"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -73,5 +75,5 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 # extras [local] の任意依存。CI（dev のみ）では入っていない
-module = ["fastembed", "fastembed.*"]
+module = ["fastembed", "fastembed.*", "ddgs", "ddgs.*"]
 ignore_missing_imports = true

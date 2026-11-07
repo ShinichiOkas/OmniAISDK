@@ -21,7 +21,7 @@ class ModelPrice(BaseModel):
 
 
 # プロセス内の実装・キー不要の無料サービス（provider_name）
-FREE_PROVIDERS = frozenset({"fastembed", "duckduckgo"})
+FREE_PROVIDERS = frozenset({"fastembed", "ddgs"})
 
 
 def default_is_free(provider: str, model: str) -> bool:

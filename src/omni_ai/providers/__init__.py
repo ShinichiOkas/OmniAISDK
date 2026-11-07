@@ -6,6 +6,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .ddgs import DDGSSearchAdapter
     from .fastembed import FastEmbedEmbeddingAdapter
     from .gemini import GeminiChatAdapter
     from .gemini.embedding import GeminiEmbeddingAdapter
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from .ollama.embedding import OllamaEmbeddingAdapter
 
 _LAZY = {
+    "DDGSSearchAdapter": ".ddgs",
     "GeminiChatAdapter": ".gemini",
     "GeminiEmbeddingAdapter": ".gemini.embedding",
     "FastEmbedEmbeddingAdapter": ".fastembed",
@@ -21,6 +23,7 @@ _LAZY = {
 }
 
 __all__ = [
+    "DDGSSearchAdapter",
     "FastEmbedEmbeddingAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",

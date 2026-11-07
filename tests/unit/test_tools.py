@@ -126,4 +126,6 @@ async def test_client_tools_property_uses_search_and_instrumentation() -> None:
         search=search,
     )
     res = await ai.tools.arun(MSG, [BuiltinTool.WEB_SEARCH, add])
-    assert res.response.content == "y" and len(ai.telemetry.history) == 2
+    assert res.response.content == "y"
+    # chat 2 回 ＋ 代行した検索 1 回が、すべてテレメトリに載る
+    assert [m.provider for m in ai.telemetry.history] == ["ollama", "fakesearch", "ollama"]

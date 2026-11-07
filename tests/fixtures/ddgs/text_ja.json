@@ -1,0 +1,27 @@
+[
+ {
+  "title": "Download Python | Python.org",
+  "href": "https://www.python.org/downloads/?hl=ja",
+  "body": "The Windows installers and all binaries produced as part of each Python release are signed using an Authenticode signing certificate issued to the Python Software Foundation."
+ },
+ {
+  "title": "Python Releases for Windows",
+  "href": "https://www.python.org/downloads/windows/?hl=ja",
+  "body": "The official home of the Python Programming Language"
+ },
+ {
+  "title": "【2026年版】Pythonの最新バージョン｜新機能やバージョンの選び方、インストール方法を解説",
+  "href": "https://freelance-board.com/journals/detail/425",
+  "body": "2026年8月19日時点の最新安定版はPython 3.14.7ですが、次期バージョンのPython 3.15はリリース候補版まで公開されています。 「最新版を入れて問題ないのか」「今の環境から更新すべきか」と迷う方も多いのではないでしょうか。"
+ },
+ {
+  "title": "What's New in Python — Python 3.15.2 ドキュメント",
+  "href": "https://docs.python.org/ja/3/whatsnew/index.html",
+  "body": "この\"What's New in Python\"という一連の文書はPythonのメジャーバージョンにおける最も重要な変更点を紹介します。新しくリリースされた後でも最新の状態であり続けたい人にとって必読のものです。 Python 3.15 の新機能- 概要 -- リリースハイライト, 新しい機能, その他の言語の変更, デフォルトの ..."
+ },
+ {
+  "title": "Python バージョン別完全比較 — 3.8 から 3.15 まで、なぜ自分は 3.11 と 3.13 を推すのか #初心者 - Qiita",
+  "href": "https://qiita.com/harupython/items/5aabf7fd592feca1a267",
+  "body": "この表は元記事からの参考整理で、各ライブラリの最新版・Python 3.15 対応状況を網羅的に検証した表ではない。 「対応」も全リリースの動作保証ではない。 「要確認」「未確認」は「絶対動かない」ではなく、バージョン依存で動く可能性があるという意味。"
+ }
+]
