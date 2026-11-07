@@ -26,7 +26,7 @@ OLLAMA_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=60.0, pool=10.0)
 
 class OllamaChatAdapter(BaseChatAdapter):
     provider_name: ClassVar[str] = "ollama"
-    supported_builtins: ClassVar[frozenset[BuiltinTool]] = frozenset()
+    supported_builtins: frozenset[BuiltinTool] = frozenset()
 
     def __init__(
         self,

@@ -2,6 +2,9 @@
 
 from ._version import __version__
 from .capabilities import ChatCapability
+from .pricing import ModelPrice, PricingTable
+from .router import FallbackChatAdapter, OmniClient, TelemetryTracker
+from .tools import ToolRunner, ToolRunResult
 from .exceptions import (
     AuthenticationError,
     CapabilityNotConfiguredError,
@@ -44,12 +47,16 @@ __all__ = [
     "ChatMessage",
     "ChatResponse",
     "ContextLengthExceededError",
+    "FallbackChatAdapter",
     "FileRef",
     "InvalidRequestError",
     "MediaPart",
+    "ModelPrice",
     "NotFoundError",
+    "OmniClient",
     "OmniError",
     "PermissionDeniedError",
+    "PricingTable",
     "ProviderConnectionError",
     "ProviderOverloadedError",
     "ProviderTimeoutError",
@@ -60,10 +67,13 @@ __all__ = [
     "SchemaValidationError",
     "StreamEvent",
     "StreamInterruptedError",
+    "TelemetryTracker",
     "TextPart",
     "ToolCall",
     "ToolDefinition",
     "ToolLoopLimitError",
+    "ToolRunResult",
+    "ToolRunner",
     "UnsupportedFeatureError",
     "UrlRef",
     "__version__",

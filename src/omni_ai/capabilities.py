@@ -76,7 +76,8 @@ class Capability(ABC):
 
 
 class ChatCapability(Capability):
-    supported_builtins: ClassVar[frozenset[BuiltinTool]] = frozenset()
+    # サーバー側で実行できる組み込みツール (ADR-09)。ラッパーはインスタンスで上書きする
+    supported_builtins: frozenset[BuiltinTool] = frozenset()
     default_model: str | None = None
 
     @abstractmethod

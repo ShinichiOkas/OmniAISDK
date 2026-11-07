@@ -27,7 +27,7 @@ DEFAULT_MODEL = "gemini-3.8-flash"
 
 class GeminiChatAdapter(BaseChatAdapter):
     provider_name: ClassVar[str] = "gemini"
-    supported_builtins: ClassVar[frozenset[BuiltinTool]] = frozenset(
+    supported_builtins: frozenset[BuiltinTool] = frozenset(
         {BuiltinTool.WEB_SEARCH, BuiltinTool.CODE_EXECUTION}
     )
 
