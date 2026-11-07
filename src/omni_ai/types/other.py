@@ -18,6 +18,8 @@ __all__ = [
     "ImageResponse",
     "JudgeQuestion",
     "JudgeResponse",
+    "MCPAttachment",
+    "MCPToolResult",
     "NoulQuestion",
     "ParsedDocument",
     "RerankItem",
@@ -137,3 +139,31 @@ class SandboxExecutionResult(BaseModel):
     exit_code: int = 0
     artifacts: list[bytes] = Field(default_factory=list)
     meta: ResponseMeta
+
+
+class MCPAttachment(BaseModel):
+    """MCP ツール結果のうち、テキストでないもの（画像・音声・blob・リンク）。base64 はテキストに混ぜない。"""
+
+    kind: Literal["image", "audio", "blob", "link"]
+    mime_type: str | None = None
+    data_base64: str | None = None
+    uri: str | None = None
+
+
+class MCPToolResult(BaseModel):
+    text: str = ""
+    is_error: bool = False
+    structured: dict[str, Any] | None = None
+    attachments: list[MCPAttachment] = Field(default_factory=list)
+
+    def for_model(self) -> str:
+        """LLM へ返す文字列。エラーは {"error": ...}、添付はテキストで注記する（base64 は渡さない）。"""
+        import json
+
+        if self.is_error:
+            return json.dumps({"error": self.text or "tool failed"}, ensure_ascii=False)
+        notes = [f"[attachment: {a.kind} {a.mime_type or a.uri or ''}]".strip() for a in self.attachments]
+        body = self.text
+        if not body and self.structured is not None:
+            body = json.dumps(self.structured, ensure_ascii=False)
+        return "\n".join([body, *notes]).strip()

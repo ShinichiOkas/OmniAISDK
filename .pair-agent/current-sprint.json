@@ -1,7 +1,7 @@
 {
-  "sprint_id": "8a2cf451-7289-424c-bf8f-03f975585a05",
+  "sprint_id": "21bb322a-3752-422d-a286-5a427d646892",
   "status": "reviewing",
-  "goal": "DocParser（pypdf / markitdown）",
+  "goal": "MCP（mcp SDK 2.x）",
   "created_at": "2026-11-07T15:31:05+09:00",
-  "agreement_path": ".pair-agent/agreements/docparser.md"
+  "agreement_path": ".pair-agent/agreements/mcp.md"
 }

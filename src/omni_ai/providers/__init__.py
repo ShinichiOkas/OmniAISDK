@@ -13,11 +13,13 @@ if TYPE_CHECKING:
     from .gemini import GeminiChatAdapter
     from .gemini.embedding import GeminiEmbeddingAdapter
     from .markitdown import MarkItDownDocumentParser
+    from .mcp import MCPClientAdapter
     from .ollama import OllamaChatAdapter
     from .ollama.embedding import OllamaEmbeddingAdapter
     from .pypdf import PyPDFDocumentParser
 
 _LAZY = {
+    "MCPClientAdapter": ".mcp",
     "MarkItDownDocumentParser": ".markitdown",
     "MimeRoutingDocumentParser": "._doc_base",
     "PyPDFDocumentParser": ".pypdf",
@@ -36,6 +38,7 @@ __all__ = [
     "FastEmbedRerankAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",
+    "MCPClientAdapter",
     "MarkItDownDocumentParser",
     "MimeRoutingDocumentParser",
     "OllamaChatAdapter",

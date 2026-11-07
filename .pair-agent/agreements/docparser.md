@@ -1,7 +1,7 @@
 ---
 sprint_id: 8a2cf451-7289-424c-bf8f-03f975585a05
 version: 2
-status: reviewing
+status: completed
 created_at: 2026-11-08T02:00:00+09:00
 updated_at: 2026-11-08T02:00:00+09:00
 domain_tags: [python-sdk, document-parsing, rag, local]
@@ -40,3 +40,4 @@ DocumentParserCapability を Mnemo の標準（PDF は pypdf、Office / RTF は 
 
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 実装・確認（ローカル文書 RAG を live で）
+- 師匠（原文）: 「OK.次、MCPに進みましょう」→ スプリント完了

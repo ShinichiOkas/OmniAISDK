@@ -19,6 +19,7 @@ from .types import (
     ImageResponse,
     JudgeQuestion,
     JudgeResponse,
+    MCPToolResult,
     MediaSource,
     ParsedDocument,
     RerankResponse,
@@ -349,8 +350,12 @@ class SandboxCapability(Capability):
 
 
 class MCPCapability(Capability):
+    """MCP サーバーとの接続（非同期のみ）。``async with`` で開閉し、同じタスクの中で使う。"""
+
     @abstractmethod
     async def alist_tools(self) -> list[ToolDefinition]: ...
 
     @abstractmethod
-    async def acall_tool(self, name: str, arguments: dict[str, Any]) -> Any: ...
+    async def acall_tool(
+        self, name: str, arguments: dict[str, Any], *, timeout: float | None = None
+    ) -> MCPToolResult: ...

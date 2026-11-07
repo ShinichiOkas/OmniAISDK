@@ -863,3 +863,25 @@ Ollama:
 
 **実測（2026-11-08・Mac、markitdown 0.1.9 / pypdf 7.0.0）**: テスト用の docx / xlsx / pptx / PDF（本文あり・画像だけ・暗号化）を `tests/fixtures/docs/make_fixtures.py` で生成して確認。暗号化された PDF は、空パスワードで開けず、ページ数も読めない（`page_count=None`）。手元の文書 4 つを解析 → fastembed で埋め込み → rerank すると、「猫はどれくらい眠る？」に対して猫の睡眠のスライドが最上位になった（キー不要の RAG）。
 
+---
+
+## 18. MCP（2026-11-08 追加スプリント）
+
+師匠の指示: 「OK.次、MCPに進みましょう」。Mnemo の標準 `mcp>=2,<3`（開発環境では mcp 2.3.0）。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| アダプター | `MCPClientAdapter(name, command=[...] | url=...)`（provider_name `"mcp"`、extras `[mcp]`） | 公式 SDK はプロトコルの参照実装なので、ADR-02 の例外として extras で使う |
+| トランスポート | stdio と streamable-http。SSE は扱わない | SSE は旧方式 |
+| 開閉 | `async with` で開閉。開いたタスクと同じタスクで使い、閉じる | anyio のキャンセルスコープの制約 |
+| コマンド解決 | stdio のコマンドは `PlatformCompat.resolve_executable` で解決（絶対パスと `sys.executable` はそのまま） | Windows の .cmd / .exe（仕様書 §9.5） |
+| ツール一覧 | `alist_tools()` → `ToolDefinition`（入力スキーマは `normalize_json_schema` で正規化。ページングに対応・キャッシュ） | 実測: スキーマに `title` が付く |
+| ツール呼び出し | `acall_tool()` → `MCPToolResult(text, is_error, structured, attachments)`。既定の待ち時間上限 120 秒 | Mnemo と同じ上限 |
+| エラー | ツールのエラー（未知のツール・引数違反・ツール内の例外）は結果の `is_error`（例外にしない）。待ち時間切れ → `ProviderTimeoutError`、その他の MCPError → `InvalidRequestError`、接続の失敗 → `ProviderConnectionError`（ExceptionGroup を展開して原因を出す） | 実測と Mnemo の教訓 |
+| 画像・音声 | `attachments` に分け、テキストに base64 を混ぜない。`for_model()` では添付を注記するだけ | Mnemo の教訓（base64 の漏れ） |
+| サーバーの stderr | 既定でログファイル（OS 標準キャッシュ配下 `mcp/<name>.stderr.log`）に残す。`errlog=` で変更可 | 捨てると障害に気づけない（Mnemo の教訓） |
+| ToolRunner | `atools()` で `OmniTool` の一覧を得て、そのまま `ai.tools.arun(..., tools)` に渡す。`tool_prefix` で複数サーバーの名前の衝突を避ける | 仕様書 Layer 3 |
+| CI | `[mcp]` を入れて、テスト用 MCP サーバー（`tests/fixtures/mcp/demo_server.py`）を 3 OS で実際に起動する | |
+
+**実測（2026-11-08・Mac）**: テスト用サーバーを stdio で起動して、ツール一覧・呼び出し・エラー・画像・待ち時間切れを確認。Ollama（gemma4:31b-cloud）が MCP の weather ツールを 2 回呼び、東京と大阪の天気を答えた（live）。mcp 2.x では FastMCP が `MCPServer` に改名され、streamable-http は `httpx2` を使う。
+

@@ -87,12 +87,13 @@ OmniAISDK/
 | Search: ddgs（キー不要の横断検索） | 実装済み・実物で確認済み（Ollama の WEB_SEARCH 代行も end-to-end で確認） |
 | Rerank: fastembed（プロセス内・多言語クロスエンコーダー） | 実装済み・実物で確認済み（キー不要の RAG: 検索 → 埋め込み → 再順位付け） |
 | DocParser: pypdf（PDF）/ markitdown（Office・RTF） | 実装済み・実物の文書ファイルで確認済み |
-| その他の 5 領域 | 抽象インタフェースのみ |
+| MCP: 公式 SDK 2.x（stdio / streamable-http） | 実装済み・実際の MCP サーバーで確認済み（Ollama から MCP ツールを呼ぶ live 確認） |
+| その他の 4 領域（Judge / Image / Audio / Sandbox） | 抽象インタフェースのみ |
 
 ## 使い方
 
 ```bash
-pip install -e ".[dev]"          # ローカル埋め込み・検索・文書解析も使うなら ".[dev,local,search,docs]"
+pip install -e ".[dev]"          # ローカル埋め込み・検索・文書解析も使うなら ".[dev,local,search,docs,mcp]"
 ```
 
 ```python
