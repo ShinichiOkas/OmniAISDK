@@ -1,0 +1,19 @@
+{
+ "model": "gemini-3.1-flash-lite",
+ "stream": false,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "Write a long story about a cat."
+     }
+    ]
+   }
+  ],
+  "generationConfig": {
+   "maxOutputTokens": 8
+  }
+ }
+}

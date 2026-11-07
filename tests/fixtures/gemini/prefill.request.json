@@ -1,0 +1,24 @@
+{
+ "model": "gemini-3.1-flash-lite",
+ "stream": false,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "Say hi"
+     }
+    ]
+   },
+   {
+    "role": "model",
+    "parts": [
+     {
+      "text": "Hel"
+     }
+    ]
+   }
+  ]
+ }
+}

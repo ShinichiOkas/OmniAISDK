@@ -152,10 +152,8 @@ def build_contents(messages: list[ChatMessage], inline_limit: int) -> tuple[dict
                 contents.append({"role": "user", "parts": [part], "_tool_results": True})
     for c in contents:
         c.pop("_tool_results", None)
-    if contents and contents[-1]["role"] == "model":
-        raise UnsupportedFeatureError(
-            "Gemini 3.6+ rejects a conversation ending with an assistant turn (prefill)", provider=PROVIDER
-        )
+    # 最後が model のターン（prefill）は送信前に拒否しない。資料では Gemini 3.6+ が 400 を返すが、
+    # 実測で gemini-3.1-flash-lite は受け付けた（2026-11-07）。可否はモデルに任せ、400 は例外に写像する
     system = {"parts": [{"text": "\n".join(system_texts)}]} if system_texts else None
     return system, contents
 

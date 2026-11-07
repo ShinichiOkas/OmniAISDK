@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 400,
+    "message": "Role 'bogus' is not supported. Please use a valid role: SYSTEM, SYSTEM_1, USER, ASSISTANT, DEVELOPER, CONTEXT, USER_CONTEXT, MODEL, USER.",
+    "status": "INVALID_ARGUMENT"
+  }
+}

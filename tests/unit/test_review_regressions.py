@@ -31,8 +31,8 @@ from tests.fakes import FakeChat, reply
 
 OLLAMA = "http://ollama.test:11434"
 GEMINI = "https://gemini.test/v1beta"
-GEN = f"{GEMINI}/models/gemini-3.8-flash:generateContent"
-STREAM = f"{GEMINI}/models/gemini-3.8-flash:streamGenerateContent"
+GEN = f"{GEMINI}/models/gemini-3.1-flash-lite:generateContent"
+STREAM = f"{GEMINI}/models/gemini-3.1-flash-lite:streamGenerateContent"
 
 
 class Person(BaseModel):

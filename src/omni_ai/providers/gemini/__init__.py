@@ -25,7 +25,8 @@ __all__ = ["DEFAULT_BASE_URL", "DEFAULT_MODEL", "GeminiChatAdapter"]
 logger = logging.getLogger("omni_ai")
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_MODEL = "gemini-3.8-flash"
+# 師匠の決定 (2026-11-07): 実測で動いた 3.1-flash-lite を既定に（3.8-flash は同じキーで無応答）
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
 
 
 class GeminiChatAdapter(BaseChatAdapter):

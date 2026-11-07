@@ -1,0 +1,83 @@
+{
+ "model": "gemini-3.1-flash-lite",
+ "stream": false,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "What's the weather in Tokyo and in Osaka? Call the tool once for each city."
+     }
+    ]
+   },
+   {
+    "role": "model",
+    "parts": [
+     {
+      "functionCall": {
+       "name": "get_weather",
+       "args": {
+        "city": "Tokyo"
+       },
+       "id": "call_259226821095196687"
+      }
+     },
+     {
+      "functionCall": {
+       "name": "get_weather",
+       "args": {
+        "city": "Osaka"
+       },
+       "id": "call_259226821095196126"
+      }
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "parts": [
+     {
+      "functionResponse": {
+       "name": "get_weather",
+       "response": {
+        "result": "sunny, 20C"
+       },
+       "id": "call_259226821095196687"
+      }
+     },
+     {
+      "functionResponse": {
+       "name": "get_weather",
+       "response": {
+        "result": "sunny, 20C"
+       },
+       "id": "call_259226821095196126"
+      }
+     }
+    ]
+   }
+  ],
+  "tools": [
+   {
+    "functionDeclarations": [
+     {
+      "name": "get_weather",
+      "description": "Get current weather for a city",
+      "parametersJsonSchema": {
+       "type": "object",
+       "properties": {
+        "city": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "city"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

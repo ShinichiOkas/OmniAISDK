@@ -1,0 +1,37 @@
+{
+ "model": "gemini-3.1-flash-lite",
+ "stream": false,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "What's the weather in Tokyo and in Osaka? Call the tool once for each city."
+     }
+    ]
+   }
+  ],
+  "tools": [
+   {
+    "functionDeclarations": [
+     {
+      "name": "get_weather",
+      "description": "Get current weather for a city",
+      "parametersJsonSchema": {
+       "type": "object",
+       "properties": {
+        "city": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "city"
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

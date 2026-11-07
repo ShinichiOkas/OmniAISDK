@@ -82,7 +82,7 @@ OmniAISDK/
 | :--- | :--- |
 | コア（例外・型・設定・OS差分吸収・HTTP 基盤・再試行・ルーター・テレメトリ・ToolRunner） | 実装済み |
 | Chat: Ollama（ネイティブ `/api/chat`） | 実装済み・実 API で確認済み（`gemma4:31b-cloud`） |
-| Chat: Google Gemini（`generateContent` v1beta） | 実装済み・**実 API では未確認**（資料ベースのテストのみ） |
+| Chat: Google Gemini（`generateContent` v1beta） | 実装済み・実 API で確認済み（`gemini-3.1-flash-lite`。google_search は quota の都合で未確認） |
 | Chat 以外の 9 領域 | 抽象インタフェースのみ |
 
 ## 使い方

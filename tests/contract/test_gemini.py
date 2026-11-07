@@ -1,6 +1,7 @@
-"""GeminiChatAdapter の契約テスト（実装設計書 §6.3）。
+"""GeminiChatAdapter の契約テスト — 実 API で記録できないケース（実装設計書 §6.3）。
 
-⚠ 応答は一次資料の例から**手作り**したもの（実 API の記録ではない。R-08）。
+⚠ このファイルの応答は一次資料の例から**手作り**したもの。実 API の記録を使うテストは
+test_gemini_recorded.py にある。
 """
 
 import json
@@ -39,7 +40,7 @@ from omni_ai.providers.gemini import GeminiChatAdapter
 from omni_ai.providers.gemini.codec import DUMMY_THOUGHT_SIGNATURE
 
 BASE = "https://gemini.test/v1beta"
-MODEL = "gemini-3.8-flash"
+MODEL = "gemini-3.1-flash-lite"
 GEN = f"{BASE}/models/{MODEL}:generateContent"
 STREAM = f"{BASE}/models/{MODEL}:streamGenerateContent"
 
@@ -185,11 +186,6 @@ def test_foreign_assistant_history_gets_dummy_signature() -> None:
     frs = body["contents"][2]["parts"]
     assert frs[0]["functionResponse"]["response"] == {"ok": True}  # JSON object はそのまま
     assert frs[1]["functionResponse"]["response"] == {"result": "2"}
-
-
-def test_prefill_rejected() -> None:
-    with pytest.raises(UnsupportedFeatureError, match="prefill"):
-        adapter().generate([ChatMessage.user("q"), ChatMessage.assistant("partial")])
 
 
 def _sse_text() -> bytes:

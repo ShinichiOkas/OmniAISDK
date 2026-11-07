@@ -1,0 +1,31 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"name\": \"Ann\",\n  \"age\": 30\n}",
+            "thoughtSignature": "EnMKcQFpFH0TxF2k0AmVI+buPDW4qtlfKwJrxDzo/36/vWU3QYCWWPg6vrII9B9QFWd/+l8xGHAmcxlsCXstHV4gTbsx4uQVy+PsfvpKB69GCaKxaLtD6jLE35DNxJpwKBMQLangfm54wetB089TnnLEdPBu"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 11,
+    "candidatesTokenCount": 19,
+    "totalTokenCount": 30,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 11
+      }
+    ],
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.1-flash-lite",
+  "responseId": "5R_vaqDNCrvLrfcPl_eF6Qk"
+}

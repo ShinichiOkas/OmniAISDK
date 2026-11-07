@@ -1,0 +1,31 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "The weather in both Tokyo and Osaka is sunny with a temperature of 20°C.",
+            "thoughtSignature": "EnMKcQFpFH0TJPRC8+GIs8KIShD8imf81JN50zBedtS6xacZF8Jk1HQHEWbbPKbT5gN5duVjuTvIXrSl0wpmltA0su7tz+FMYzUAEbPyK2WSxZo1Od6UKM1YjpYe5K7LNIYNXXR1mJt9XNOyRhnOs252mpPp"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 131,
+    "candidatesTokenCount": 19,
+    "totalTokenCount": 150,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 131
+      }
+    ],
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.1-flash-lite",
+  "responseId": "4h_vapSDN87Y9tMPl7eM8A8"
+}

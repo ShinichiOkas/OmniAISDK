@@ -1,0 +1,31 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Barnaby was not",
+            "thoughtSignature": "EnMKcQFpFH0T8aXO6d6B5xTw+ImTD/0zG0GFhxMH0+PurAc2rX+8wg2+PihtU4IVFKqvAY8YRqF8y2isjMKPFrdjexV/k5UEUs0CRjRIrsl9icg8y6BNaDwH9hKfB2IjfHEJdx9LP5SNEUFJ3+stacu2nvd4"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "MAX_TOKENS",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 9,
+    "candidatesTokenCount": 4,
+    "totalTokenCount": 13,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 9
+      }
+    ],
+    "serviceTier": "standard"
+  },
+  "modelVersion": "gemini-3.1-flash-lite",
+  "responseId": "6h_vapm_GpborfcP79D_gAw"
+}

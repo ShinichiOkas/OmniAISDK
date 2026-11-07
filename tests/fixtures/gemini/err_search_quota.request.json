@@ -1,0 +1,21 @@
+{
+ "model": "gemini-3.1-flash-lite",
+ "stream": false,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "Latest Python version?"
+     }
+    ]
+   }
+  ],
+  "tools": [
+   {
+    "google_search": {}
+   }
+  ]
+ }
+}

@@ -480,7 +480,7 @@ messages, opts
 | API | **`generateContent` / `streamGenerateContent`（v1beta）** を使う | [確認済] 公式索引は Interactions API を既定とし、generateContent を「legacy」と呼ぶ。ただし移行ガイドは generateContent を「fully supported」と書いており、サンセット日は見つからなかった [未検証]。関数呼び出し・組み込みツール・ストリームの資料がそろっているのは generateContent の側なので、こちらで縦切りを通す。**代償**: 将来、移行が要る。codec を差し替えられる構造（§6.2）にして、`InteractionsCodec` を後から足せるようにしておく |
 | 版 | `v1beta`（`base_url` で変更可） | [確認済] Context Caching と Files 関連が v1beta |
 | 認証 | `x-goog-api-key` ヘッダ。`?key=` は使わない | [確認済] ヘッダが正式。キーが URL に入るとログに残りやすいため |
-| 既定モデル | `gemini-3.8-flash` | [確認済] モデル一覧に掲載されており、公式コード例の既定。このキーの `models.list` にもあった（2026-11-07 実測） |
+| 既定モデル | **`gemini-3.1-flash-lite`**（師匠の決定 2026-11-07） | 当初は公式コード例の既定に合わせて `gemini-3.8-flash` にしたが、実測で同じキーでは無応答のままタイムアウトした。`gemini-3.1-flash-lite` は実測で動いた |
 | 注意 | `gemini-2.5-flash` / `-pro` は deprecated。2026-12-01 から別モデルへ自動ルーティングされる | [確認済] 仕様書 v3.0 の例のモデル名は古い |
 
 ### 7.2 要求の写像（共通型 → Gemini）
@@ -491,7 +491,7 @@ messages, opts
 | `Role.USER` | `contents[{role:"user"}]` | |
 | `Role.ASSISTANT` | `contents[{role:"model"}]` | `provider_state["gemini"]["parts"]` があれば、**その parts をそのまま**送る（§7.4） |
 | `Role.TOOL`（連続する分をまとめる） | **1 つの** `{role:"user", parts:[{functionResponse:{name, id, response}}...]}` | [確認済] 並列呼び出しの結果は、FC1, FC2, FR1, FR2 の順に並べる必要がある（交互に並べると 400）。`response` は object が必須なので、`str` の結果は `{"result": ...}`、例外は `{"error": ...}` で包む |
-| 最後のメッセージが ASSISTANT | 送信前に `UnsupportedFeatureError` | [確認済] Gemini 3.6 以降は、最後のターンが model だと 400（prefill 禁止） |
+| 最後のメッセージが ASSISTANT | **送信前には拒否しない**（API の 400 を例外に写像する） | 資料では Gemini 3.6 以降が 400。**実測で `gemini-3.1-flash-lite` は 200 で続きを返した**ため、可否をモデルに任せる |
 | `TextPart` | `{text}` | |
 | `MediaPart` + bytes / Path / BinaryIO | インライン上限以下なら `inlineData{mimeType, data(base64)}`、超えたら Files API でアップロードして `fileData` | [確認済] インラインは要求全体で 100MB（PDF は 50MB）まで。SDK のインライン上限の既定は **20MB**（メモリを守るための保守的な値。変更可） |
 | `MediaPart` + `FileRef(provider="gemini")` | `fileData{fileUri, mimeType}` | |
@@ -764,4 +764,7 @@ Ollama:
 | I-14 | 独立レビュー（別の文脈のエージェント、2026-11-07）の指摘 12 件を修正し、回帰テストを追加（`tests/unit/test_review_regressions.py`）。主なもの: Ollama ストリームで構造化出力の検証と `attempts` が抜けていた、ストリーム終端のスキーマ違反が `StreamInterruptedError` になっていた、外部ツールと内部ツールが同じターンに来ると内部ツールが実行されなかった、ストリームのメディアを 2 回目に空で送っていた | 作った本人のテストでは見つからなかった | — |
 | I-15 | メディアのストリームは読んだ後に元の位置へ戻す。戻せないストリームは 1 回しか送れないので warning を出す。Gemini はアップロード済みのメディアを 47 時間キャッシュする | ToolRunner の各ターンやフォールバックで同じ履歴を何度も送るため | — |
 | I-16 | `close()`（同期）は非同期 transport も使用不可にし、非同期クライアントが開いていれば `aclose()` を案内する warning を出す | 同期の close では非同期の接続を閉じられないため | — |
+| I-17 | Gemini の既定モデルを `gemini-3.1-flash-lite` に変更（師匠の決定） | 実測: `gemini-3.8-flash` は同じキーで無応答 | — |
+| I-18 | prefill（最後が assistant）を送信前に拒否しない | 実測: 3.1-flash-lite は受け付けた | — |
+| I-19 | Gemini の契約テストを、実 API の記録（`tests/fixtures/gemini/`）に置き換えた。SDK が組み立てる並列ツール呼び出しの往復の要求が、実 API で 200 になった要求と**完全に一致**することを確認。記録できないケース（402・503・grounding 等）だけ手作りの応答を残した | R-08 の解消 | — |
 

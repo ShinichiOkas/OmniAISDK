@@ -879,7 +879,7 @@ def calculate_roi(initial_cost: float, annual_savings: float) -> float:
 async def main():
     # 1. Gemini がレート制限・障害・残高切れの時は自動でローカル Ollama へフォールバックする構成
     resilient_chat = FallbackChatAdapter([
-        GeminiChatAdapter(default_model="gemini-3.8-flash"),
+        GeminiChatAdapter(default_model="gemini-3.1-flash-lite"),
         OllamaChatAdapter(default_model="qwen3:8b"),   # tools 対応のローカルモデルを指定する（例）
     ])
 

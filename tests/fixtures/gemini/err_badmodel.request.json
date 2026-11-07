@@ -1,0 +1,16 @@
+{
+ "model": "gemini-no-such-model",
+ "stream": false,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "hi"
+     }
+    ]
+   }
+  ]
+ }
+}

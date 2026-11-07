@@ -8,7 +8,7 @@ import os
 
 import pytest
 
-from omni_ai import BuiltinTool, ChatMessage, omni_tool
+from omni_ai import BuiltinTool, ChatMessage, RateLimitError, omni_tool
 from omni_ai.providers.gemini import GeminiChatAdapter
 
 MODEL = os.environ.get("OMNI_LIVE_GEMINI_MODEL", "gemini-3.1-flash-lite")
@@ -46,7 +46,10 @@ def test_live_stream_and_search() -> None:
     chat = GeminiChatAdapter(default_model=MODEL)
     events = list(chat.stream([ChatMessage.user("Count 1 to 3.")]))
     assert events[-1].type == "message_complete"
-    res = chat.generate(
-        [ChatMessage.user("What is the latest Python version?")], tools=[BuiltinTool.WEB_SEARCH]
-    )
+    try:
+        res = chat.generate(
+            [ChatMessage.user("What is the latest Python version?")], tools=[BuiltinTool.WEB_SEARCH]
+        )
+    except RateLimitError as e:  # 2026-11-07 実測: このキーでは google_search が quota 超過 (429)
+        pytest.skip(f"google_search quota: {e.message[:80]}")
     assert res.content

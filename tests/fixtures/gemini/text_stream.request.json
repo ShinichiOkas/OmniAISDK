@@ -1,0 +1,16 @@
+{
+ "model": "gemini-3.1-flash-lite",
+ "stream": true,
+ "body": {
+  "contents": [
+   {
+    "role": "user",
+    "parts": [
+     {
+      "text": "Count from 1 to 5, separated by spaces."
+     }
+    ]
+   }
+  ]
+ }
+}
