@@ -1,7 +1,7 @@
 ---
 sprint_id: c47f60bc-740f-4bae-b532-23e27cbd25b1
 version: 3
-status: executing
+status: reviewing
 created_at: 2026-11-07T16:30:00+09:00
 updated_at: 2026-11-07T16:30:00+09:00
 domain_tags: [python-sdk, implementation, llm-provider]
