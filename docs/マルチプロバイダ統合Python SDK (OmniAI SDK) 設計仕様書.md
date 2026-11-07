@@ -1,4 +1,7 @@
-# **マルチプロバイダ統合Python SDK (OmniAI SDK v3.0 \- Production Edition) 設計仕様書**
+# **マルチプロバイダ統合Python SDK (OmniAI SDK v3.1 \- Production Edition) 設計仕様書**
+
+> **v3.1 (2026-11-07)**: v3.0 の不整合・欠落を修正した版。変更点の一覧は末尾の「11. 変更履歴」を参照。
+> 実装上の詳細（モジュール構成、sans-IO 方式、プロバイダごとの対応表、テスト方針）は [OmniAI SDK 実装設計書 (コア＋Chat)](./OmniAI%20SDK%20実装設計書%20(コア＋Chat).md) に分けて書く。
 
 # **1\. 概要と設計思想**
 
@@ -12,7 +15,7 @@
 * 高速・安価な型付き決定論的評価（System One）: [TypeSafe Jev](https://docs.typesafe.ai/introduction)  
 * 高精度RAGおよび外部連携: [Cohere Rerank](https://cohere.com/rerank)、[Tavily Search](https://tavily.com/)、[E2B Sandbox](https://e2b.dev/)、MCP (Model Context Protocol)
 
-本SDK（OmniAI SDK v3.0）は、全10領域のモダリティを適材適所でミックス利用できるだけでなく、**プロダクション運用に必須となる非同期I/O（`async/await`）、マルチモーダル型、統一例外階層と自動フェイルオーバー、メモリ安全なストリームI/O、およびコスト・レイテンシ監視（Observability）**を完全統合したエンタープライズ仕様を定義します。
+本SDK（OmniAI SDK v3.1）は、全10領域のモダリティを適材適所でミックス利用できるだけでなく、**プロダクション運用に必須となる非同期I/O（`async/await`）、マルチモーダル型、統一例外階層と自動フェイルオーバー、メモリ安全なストリームI/O、およびコスト・レイテンシ監視（Observability）**を完全統合したエンタープライズ仕様を定義します。
 
 ## **1.2 v3.0 における7大アーキテクチャ強化ポイント**
 
@@ -33,9 +36,7 @@
 | **3\. 画像生成 (Image)** | `ImageCapability` | Ollama (MLX Flux等), OpenAI (DALL-E 3 / GPT-Image), Gemini (Imagen 3\) | `prompt`, `size`, `n`, 出力バイナリ / ストリーム保存の統一 | Negative Prompt、Seed固定、スタイル指定 |
 | **4\. 音声処理 (Audio)** | `AudioCapability` | OpenAI, Gemini, ローカルWhisper / Kokoro | TTS (`speak` / `aspeak`), STT (`transcribe` / `atranscribe`), `MediaSource` 対応 | 話速調整、ワード単位タイムスタンプ、双方向WebSocket |
 | **5\. 埋め込み (Embed)** | `EmbeddingCapability` | OpenAI, Gemini, Ollama, Voyage AI | `texts: List[str]` から `List[List[float]]` へのベクトル変換 | 出力次元数の圧縮指定 (`dimensions`) |
-
-| 6\. リランカー (Rerank) | `RerankCapability` | Cohere Rerank, Jina, Voyage, ローカルBGE-Reranker | `query` と `documents` から関連度順スコア付きリストへの再整列 | 多言語モデル指定、チャンク最大トークン調整 |
-| :---- | :---- | :---- | :---- | :---- |
+| **6\. リランカー (Rerank)** | `RerankCapability` | Cohere Rerank, Jina, Voyage, ローカルBGE-Reranker | `query` と `documents` から関連度順スコア付きリストへの再整列 | 多言語モデル指定、チャンク最大トークン調整 |
 | **7\. Web検索 (Search)** | `SearchCapability` | Tavily, Exa, Brave Search, Google Grounding | `query`, `max_results` からタイトル・URL・本文スニペットの配列返却 | ドメインフィルタ、生HTML取得、日付範囲指定 |
 | **8\. 文書解析 (DocParser)** | `DocumentParserCapability` | Mistral OCR, LlamaParse, Unstructured, ローカルMarker | `MediaSource` (PDF/Office) から構造化Markdownおよび表データの抽出 | 画像・図表切り出し、ページ単位メタデータ付与 |
 | **9\. コード実行 (Sandbox)** | `SandboxCapability` | E2B Sandbox, Modal, Gemini Code Execution, ローカルDocker | Pythonコード文字列の隔離実行と標準出力・エラー・生成ファイルの取得 | 永続セッション維持、パッケージ動的インストール |
@@ -45,49 +46,80 @@
 
 呼び出し側がプロバイダ固有のSDK例外に依存しないよう、すべてのアダプターは以下の標準例外に変換して送出します。
 
-```py
-from typing import Optional
+`retryable` は「**同じ要求をそのまま送り直せば成功しうるか**」だけを表します。別プロバイダへ切り替えるかどうか（フォールバック）は、`FallbackChatAdapter.fallback_on` で例外の型ごとに別途決めます（§6）。
 
+```py
 class OmniError(Exception):
     """OmniAI SDK すべての例外の基底クラス"""
     def __init__(
         self,
         message: str,
         provider: str,
-        model: Optional[str] = None,
-        status_code: Optional[int] = None,
+        model: str | None = None,
+        status_code: int | None = None,
         retryable: bool = False,
-        raw_error: Optional[Exception] = None,
+        raw_error: Exception | None = None,
+        request_id: str | None = None,
     ):
         super().__init__(message)
         self.provider = provider
         self.model = model
         self.status_code = status_code
         self.retryable = retryable
-        self.raw_error = raw_error
+        self.raw_error = raw_error      # APIキーを含むヘッダは保持しない
+        self.request_id = request_id
 
 class AuthenticationError(OmniError):
-    """APIキー不正・権限不足 (401/403) - リトライ不可"""
-    pass
+    """APIキー不正 (401、および Gemini の 400 API_KEY_INVALID) - リトライ不可"""
+
+class PermissionDeniedError(AuthenticationError):
+    """権限不足・地域制限 (403) - リトライ不可"""
+
+class InvalidRequestError(OmniError):
+    """要求不正 (400) - リトライ不可"""
+
+class ContextLengthExceededError(InvalidRequestError):
+    """最大コンテキスト長超過 - リトライ不可（fallback_on に加えれば長文脈プロバイダへ逃がせる）"""
+
+class UnsupportedFeatureError(InvalidRequestError):
+    """要求された機能（組み込みツール・入力モダリティ等）をこのアダプター/モデルが扱えない。SDK が送信前に検出"""
+
+class NotFoundError(OmniError):
+    """モデル・ファイル等が存在しない (404) - リトライ不可"""
+
+class QuotaExceededError(OmniError):
+    """課金残高・利用枠の枯渇 (Gemini 402 等) - リトライ不可・フォールバック対象"""
 
 class RateLimitError(OmniError):
     """レート制限到達 (429) - リトライおよびフォールバック対象"""
-    def __init__(self, *args, retry_after_seconds: Optional[float] = None, **kwargs):
+    def __init__(self, *args, retry_after_seconds: float | None = None, **kwargs):
         super().__init__(*args, retryable=True, **kwargs)
         self.retry_after_seconds = retry_after_seconds
 
 class ProviderOverloadedError(OmniError):
-    """プロバイダ過負荷・一時障害 (500/502/503/529) - フォールバック対象"""
+    """プロバイダ過負荷・一時障害 (500/502/503/504/529) - リトライおよびフォールバック対象"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, retryable=True, **kwargs)
 
-class ContextLengthExceededError(OmniError):
-    """最大コンテキスト長超過 (400) - リトライ不可"""
-    pass
+class ProviderConnectionError(OmniError):
+    """接続拒否・DNS失敗など（ローカル Ollama 未起動の典型）- リトライおよびフォールバック対象"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, retryable=True, **kwargs)
+
+class ProviderTimeoutError(ProviderConnectionError):
+    """タイムアウト - リトライおよびフォールバック対象"""
+
+class StreamInterruptedError(OmniError):
+    """ストリームの途中（最初のイベント送出後）での失敗。フォールバックしない (ADR-07)"""
 
 class SchemaValidationError(OmniError):
     """Structured Outputs または Judge の型検証失敗"""
-    pass
+
+class ToolLoopLimitError(OmniError):
+    """ToolRunner が max_turns に達した。途中結果を partial_result に保持"""
+
+class CapabilityNotConfiguredError(OmniError):
+    """OmniClient で未設定の Capability にアクセスした"""
 ```
 
 # **4\. 共通データモデル・テレメトリ・マルチモーダル型 (`omni_ai/types.py`)**
@@ -97,15 +129,18 @@ import inspect
 from enum import Enum
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Literal, Optional, Type, Union
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 # -------------------------------------------------------------
 # 0. 共通テレメトリ & メディアソース抽象化
 # -------------------------------------------------------------
+FinishReason = Literal["stop", "tool_calls", "length", "content_filter", "error", "unknown"]
+
 class Usage(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached_tokens: int = 0
+    reasoning_tokens: int = 0      # 思考トークン (Gemini thoughtsTokenCount 等)
     total_tokens: int = 0
 
 class ResponseMeta(BaseModel):
@@ -113,18 +148,27 @@ class ResponseMeta(BaseModel):
     provider: str
     model: str
     latency_ms: float = 0.0
-    estimated_cost_usd: float = 0.0
+    time_to_first_event_ms: Optional[float] = None   # ストリーミング時のみ
+    estimated_cost_usd: Optional[float] = None       # 単価不明なら None（0 と区別する。ADR-10）
     request_id: Optional[str] = None
     usage: Usage = Field(default_factory=Usage)
+    attempts: int = 1                                # 再試行を含む試行回数
+    fallback_from: List[str] = Field(default_factory=list)   # 失敗して飛ばしたプロバイダ名
 
 class FileRef(BaseModel):
     """プロバイダ側に事前アップロードされたファイル参照 (Gemini File API / OpenAI Files等)"""
+    provider: str                  # どのプロバイダの参照か（他社アダプターには渡さない）
     file_id: str
     uri: Optional[str] = None
     mime_type: str
 
-# メモリ圧迫を防ぐ汎用メディア入力型 (bytes, ファイルパス, ストリーム, アップロード済み参照)
-MediaSource = Union[bytes, Path, BinaryIO, FileRef, str]
+class UrlRef(BaseModel):
+    """URL で指定するメディア。SDK は自動ダウンロードしない（URL 入力非対応のプロバイダでは UnsupportedFeatureError）"""
+    url: str
+
+# メモリ圧迫を防ぐ汎用メディア入力型 (bytes, ファイルパス, ストリーム, アップロード済み参照, URL)
+# v3.0 の素の `str` は「パスか URL か base64 か」が曖昧なため除外し、UrlRef に置き換えた
+MediaSource = Union[bytes, Path, BinaryIO, FileRef, UrlRef]
 
 # -------------------------------------------------------------
 # 1. マルチモーダル Chat & Tool Calling データモデル
@@ -140,6 +184,7 @@ class TextPart(BaseModel):
     text: str
 
 class MediaPart(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)   # BinaryIO を許すため
     type: Literal["image", "audio", "video", "document"]
     source: MediaSource
     mime_type: str
@@ -153,45 +198,75 @@ class ToolDefinition(BaseModel):
     parameters_schema: Dict[str, Any]  # JSON Schema
     strict: bool = True
 
-def omni_tool(func: Callable) -> ToolDefinition:
-    """Python関数からToolDefinitionを自動生成するデコレータ"""
-    sig = inspect.signature(func)
-    fields = {
-        k: (v.annotation if v.annotation != inspect.Parameter.empty else str,
-            ... if v.default == inspect.Parameter.empty else v.default)
-        for k, v in sig.parameters.items()
-    }
-    pydantic_model = create_model(f"{func.__name__}_schema", **fields)
-    return ToolDefinition(
-        name=func.__name__,
-        description=(func.__doc__ or "").strip(),
-        parameters_schema=pydantic_model.model_json_schema(),
-    )
+class OmniTool(ToolDefinition):
+    """@omni_tool が返す、呼び出し可能なツール定義。元の関数を handler として保持する (ADR-12)。
+    v3.0 では関数が ToolDefinition に置き換わり、Layer 1 のローカル実行で元の関数を呼べなかった。"""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    handler: Callable[..., Any] = Field(exclude=True)
+    is_async: bool = False
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.handler(*args, **kwargs)
+
+def omni_tool(func: Optional[Callable] = None, *, name: Optional[str] = None,
+              description: Optional[str] = None, strict: bool = True):
+    """Python関数から OmniTool を自動生成するデコレータ（@omni_tool / @omni_tool(name=...) の両形式）。
+    - 引数スキーマは pydantic.create_model で生成し、プロバイダが受け付ける JSON Schema サブセットへ正規化する
+      （title 除去・$defs 展開。詳細は実装設計書 §5.3）
+    - self / cls / *args / **kwargs を含む関数は TypeError
+    - Docstring の Args: 節を各引数の description に写す"""
+    ...
+
+class BuiltinTool(str, Enum):
+    WEB_SEARCH = "builtin::web_search"
+    CODE_EXECUTION = "builtin::code_execution"
+
+ToolSpec = Union[ToolDefinition, OmniTool, BuiltinTool]   # tools 引数の要素型
 
 class ToolCall(BaseModel):
-    id: str
+    id: str                       # プロバイダが id を返さない場合は SDK が採番する
     name: str
     arguments: Dict[str, Any]
+    provider_state: Dict[str, Any] = Field(default_factory=dict)   # 例: Gemini thoughtSignature (ADR-11)
 
 class ChatMessage(BaseModel):
     role: Role
     content: Union[str, List[ContentPart]]
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
+    name: Optional[str] = None    # TOOL メッセージのツール名（Gemini / Ollama は名前で結果を対応づける）
+    provider_state: Dict[str, Any] = Field(default_factory=dict)   # アダプターだけが読み書きする不透明な状態 (ADR-11)
+
+class Citation(BaseModel):
+    """組み込み Web 検索 (Layer 2) の出典"""
+    url: str
+    title: Optional[str] = None
+    start_index: Optional[int] = None
+    end_index: Optional[int] = None
 
 class ChatResponse(BaseModel):
     content: Optional[str] = None
     parsed: Optional[Any] = None
+    reasoning: Optional[str] = None          # 思考の要約（取得できるプロバイダのみ）
     tool_calls: List[ToolCall] = Field(default_factory=list)
-    finish_reason: Literal["stop", "tool_calls", "length", "content_filter", "unknown"] = "stop"
+    citations: List[Citation] = Field(default_factory=list)
+    finish_reason: FinishReason = "stop"
     meta: ResponseMeta
 
+    def to_message(self) -> ChatMessage:
+        """履歴にそのまま積めるアシスタントメッセージ（tool_calls と provider_state を保持）を返す"""
+        ...
+
 class StreamEvent(BaseModel):
-    """ストリーミング中の構造化イベント（テキスト・ツール呼び出し・完了時統計を統合）"""
-    type: Literal["text_delta", "tool_call_delta", "message_complete"]
+    """ストリーミング中の構造化イベント（テキスト・思考・ツール呼び出し・出典・完了時統計を統合）
+    v3.0 の "tool_call_delta" は「delta と名乗りながら完成した ToolCall を運ぶ」矛盾があったため "tool_call" に改名。
+    引数 JSON の断片はアダプター内部で組み立て、利用者には完成した ToolCall だけを渡す。"""
+    type: Literal["text_delta", "reasoning_delta", "tool_call", "citation", "message_complete"]
     delta_text: str = ""
     tool_call: Optional[ToolCall] = None
-    finish_reason: Optional[str] = None
+    citation: Optional[Citation] = None
+    finish_reason: Optional[FinishReason] = None
+    response: Optional[ChatResponse] = None   # message_complete 時: 全体を組み立てた ChatResponse
     meta: Optional[ResponseMeta] = None
 
 # -------------------------------------------------------------
@@ -293,66 +368,70 @@ class SandboxExecutionResult(BaseModel):
 
 すべてのCapabilityにおいて、同期版と非同期版（`a` プレフィックス）の双方を提供します。
 
+v3.1 での共通規約:
+- すべての Capability は共通基底 `Capability` を継承し、`provider_name`（v3.0 §8.4 が参照していたのに未定義だった）と、HTTP セッションを閉じる `close()` / `aclose()`、コンテキストマネージャを持つ。
+- `messages` / `prompt` などの主入力より後ろの引数は**キーワード専用**（`*,`）。位置引数のずれがフォールバック先で別の意味になる事故を防ぐ。
+- v3.0 の `**kwargs` は `**provider_options` とし、プロバイダ固有の指定は `gemini={...}` / `ollama={...}` のように**名前空間付き**で渡す。各アダプターは自分の名前空間だけを読み、他は無視する（無視した事実は debug ログに出す）。これにより、フォールバック先に他社向けの指定が混入しない。
+- 以下では Chat を v3.1 の形で示す。Chat 以外の 9 領域のシグネチャは、上記の共通規約を当てはめる以外は v3.0 のまま（Chat 以外の設計は実装着手時に見直す）。
+
 ```py
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Type, Union
+from typing import Any, AsyncIterator, ClassVar, Dict, FrozenSet, Iterator, List, Literal, Optional, Sequence, Type, Union
 from pydantic import BaseModel
 from .types import (
-    ChatMessage, ChatResponse, StreamEvent, ToolDefinition,
+    BuiltinTool, ChatMessage, ChatResponse, StreamEvent, ToolDefinition, ToolSpec,
     JudgeQuestion, JudgeResponse, ImageResponse,
     AudioSpeechResponse, AudioTranscriptionResponse, EmbeddingResponse,
     RerankResponse, SearchResponse, ParsedDocument, SandboxExecutionResult, MediaSource
 )
 
-class ChatCapability(ABC):
+class Capability(ABC):
+    provider_name: ClassVar[str]
+
+    def close(self) -> None: ...
+    async def aclose(self) -> None: ...
+    def __enter__(self): return self
+    def __exit__(self, *exc) -> None: self.close()
+    async def __aenter__(self): return self
+    async def __aexit__(self, *exc) -> None: await self.aclose()
+
+
+ToolChoice = Union[Literal["auto", "none", "required"], str]   # str はツール名の強制指定
+
+class ChatCapability(Capability):
+    # このアダプターがサーバー側で実行できる組み込みツール (ADR-09)
+    supported_builtins: ClassVar[FrozenSet[BuiltinTool]] = frozenset()
+
     @abstractmethod
     def generate(
         self,
-        messages: List[ChatMessage],
+        messages: Sequence[ChatMessage],
+        *,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        tools: Optional[List[ToolDefinition]] = None,
+        tools: Optional[Sequence[ToolSpec]] = None,
+        tool_choice: ToolChoice = "auto",
         response_schema: Optional[Type[BaseModel]] = None,
-        **kwargs: Any,
+        timeout: Optional[float] = None,
+        **provider_options: Any,
     ) -> ChatResponse:
         pass
 
     @abstractmethod
-    async def agenerate(
-        self,
-        messages: List[ChatMessage],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        tools: Optional[List[ToolDefinition]] = None,
-        response_schema: Optional[Type[BaseModel]] = None,
-        **kwargs: Any,
-    ) -> ChatResponse:
+    async def agenerate(self, messages: Sequence[ChatMessage], *, ...) -> ChatResponse:   # 引数は generate と同一
         pass
 
     @abstractmethod
-    def stream(
-        self,
-        messages: List[ChatMessage],
-        model: Optional[str] = None,
-        tools: Optional[List[ToolDefinition]] = None,
-        **kwargs: Any,
-    ) -> Iterator[StreamEvent]:
+    def stream(self, messages: Sequence[ChatMessage], *, ...) -> Iterator[StreamEvent]:      # 引数は generate と同一
         pass
 
     @abstractmethod
-    def astream(
-        self,
-        messages: List[ChatMessage],
-        model: Optional[str] = None,
-        tools: Optional[List[ToolDefinition]] = None,
-        **kwargs: Any,
-    ) -> AsyncIterator[StreamEvent]:
+    def astream(self, messages: Sequence[ChatMessage], *, ...) -> AsyncIterator[StreamEvent]:  # 引数は generate と同一
         pass
 
 
-class JudgeCapability(ABC):
+class JudgeCapability(Capability):
     @abstractmethod
     def evaluate(
         self,
@@ -374,7 +453,7 @@ class JudgeCapability(ABC):
         pass
 
 
-class ImageCapability(ABC):
+class ImageCapability(Capability):
     @abstractmethod
     def generate_image(
         self,
@@ -398,7 +477,7 @@ class ImageCapability(ABC):
         pass
 
 
-class AudioCapability(ABC):
+class AudioCapability(Capability):
     @abstractmethod
     def speak(
         self,
@@ -442,7 +521,7 @@ class AudioCapability(ABC):
         pass
 
 
-class EmbeddingCapability(ABC):
+class EmbeddingCapability(Capability):
     @abstractmethod
     def embed(
         self,
@@ -464,7 +543,7 @@ class EmbeddingCapability(ABC):
         pass
 
 
-class RerankCapability(ABC):
+class RerankCapability(Capability):
     @abstractmethod
     def rerank(
         self,
@@ -488,7 +567,7 @@ class RerankCapability(ABC):
         pass
 
 
-class SearchCapability(ABC):
+class SearchCapability(Capability):
     @abstractmethod
     def search(
         self,
@@ -510,7 +589,7 @@ class SearchCapability(ABC):
         pass
 
 
-class DocumentParserCapability(ABC):
+class DocumentParserCapability(Capability):
     @abstractmethod
     def parse(
         self,
@@ -530,7 +609,7 @@ class DocumentParserCapability(ABC):
         pass
 
 
-class SandboxCapability(ABC):
+class SandboxCapability(Capability):
     @abstractmethod
     def execute_python(
         self,
@@ -550,7 +629,7 @@ class SandboxCapability(ABC):
         pass
 
 
-class MCPCapability(ABC):
+class MCPCapability(Capability):
     @abstractmethod
     async def alist_tools(self) -> List[ToolDefinition]:
         """MCPサーバーのツール一覧をSDK標準のToolDefinitionリストとして取得"""
@@ -565,53 +644,93 @@ class MCPCapability(ABC):
 
 プロバイダ障害時の自動切り替え（`FallbackChatAdapter`）およびセッション全体のコスト・レイテンシ集計機構を備えた `OmniClient` の仕様です。
 
+**再試行とフォールバックの順序 (ADR-08)**: まず同一プロバイダ内で `RetryPolicy`（transport 層、指数バックオフ＋ジッタ、`retry_after` 優先）により再試行し、それでも失敗した場合にルーター層の `FallbackChatAdapter` が次のプロバイダへ切り替えます。
+
+**ストリーミング中のフォールバック (ADR-07)**: 最初の `StreamEvent` を返す前の失敗に限り次のプロバイダへ切り替えます。1 つでもイベントを返した後の失敗は `StreamInterruptedError` とし、切り替えません（2 社の出力が混ざった応答を防ぐ）。
+
+**計測の一元化**: 時間計測・コスト計算・`on_response` フックの呼び出しはアダプターではなく `OmniClient` が行います。`OmniClient.chat` などのプロパティは、設定されたアダプターを計測用プロキシで包んで返します（v3.0 では `on_response` を受け取りながら呼び出す経路が無かった）。
+
 ```py
-from typing import Callable, List, Optional
-from .exceptions import OmniError
+from typing import Callable, List, Mapping, Optional, Sequence, Tuple, Type
+from .exceptions import (
+    OmniError, RateLimitError, ProviderOverloadedError, ProviderConnectionError,
+    QuotaExceededError, CapabilityNotConfiguredError,
+)
 from .types import ResponseMeta
+from .pricing import PricingTable
 from .capabilities import (
     ChatCapability, JudgeCapability, ImageCapability, AudioCapability,
     EmbeddingCapability, RerankCapability, SearchCapability,
     DocumentParserCapability, SandboxCapability, MCPCapability
 )
 
+DEFAULT_FALLBACK_ON: Tuple[Type[OmniError], ...] = (
+    RateLimitError, ProviderOverloadedError, ProviderConnectionError, QuotaExceededError,
+)
+
 class FallbackChatAdapter(ChatCapability):
-    """プライマリプロバイダがRateLimitや過負荷(529/503)で失敗した際、自動でセカンダリへ切り替えるラッパー"""
-    def __init__(self, providers: List[ChatCapability]):
+    """プライマリが fallback_on に含まれる例外で失敗した際、次のプロバイダへ切り替えるラッパー。
+    generate / agenerate / stream / astream の 4 メソッドすべてを実装する。"""
+    provider_name = "fallback"
+
+    def __init__(
+        self,
+        providers: Sequence[ChatCapability],
+        *,
+        fallback_on: Tuple[Type[OmniError], ...] = DEFAULT_FALLBACK_ON,
+        # model 引数の読み替え表: {provider_name: {要求された model: そのプロバイダでの model}}
+        # 対応が無いプロバイダでは、そのアダプターの default_model を使う
+        model_map: Optional[Mapping[str, Mapping[str, str]]] = None,
+    ):
         if not providers:
             raise ValueError("At least one provider is required.")
-        self.providers = providers
+        self.providers = list(providers)
+        self.fallback_on = fallback_on
+        self.model_map = model_map or {}
 
-    async def agenerate(self, *args, **kwargs):
-        last_err = None
+    async def agenerate(self, messages, *, model=None, tools=None, **kwargs):
+        errors: List[OmniError] = []
         for provider in self.providers:
-            try:
-                return await provider.agenerate(*args, **kwargs)
-            except OmniError as e:
-                last_err = e
-                if not e.retryable:
-                    raise
+            if not _supports_requested_builtins(provider, tools):   # 組み込みツール未対応のプロバイダは飛ばす
                 continue
-        raise last_err
+            try:
+                res = await provider.agenerate(
+                    messages, model=self._map_model(provider, model), tools=tools, **kwargs)
+                res.meta.fallback_from = [e.provider for e in errors]
+                return res
+            except self.fallback_on as e:
+                errors.append(e)
+                continue
+        # 全滅: 最後の例外を送出し、それまでの例外を add_note で要約して付ける
+        ...
 
-    # generate, stream, astream も同様に順次フェイルオーバー実装
+    # generate は同形。stream / astream は「最初のイベントを返す前」だけ切り替える (ADR-07)
 
 
 class TelemetryTracker:
-    """複数プロバイダを跨いだAPI呼び出しの累計コストとレイテンシを集計"""
+    """複数プロバイダを跨いだAPI呼び出しの累計コストとレイテンシを集計（スレッド安全）"""
     def __init__(self):
         self.history: List[ResponseMeta] = []
+        self._lock = threading.Lock()
 
     def record(self, meta: ResponseMeta) -> None:
-        self.history.append(meta)
+        with self._lock:
+            self.history.append(meta)
 
     @property
     def total_cost_usd(self) -> float:
-        return sum(m.estimated_cost_usd for m in self.history)
+        """単価既知の呼び出しの合計。単価不明 (None) は含めず unpriced_calls で別に数える"""
+        return sum(m.estimated_cost_usd for m in self.history if m.estimated_cost_usd is not None)
+
+    @property
+    def unpriced_calls(self) -> int:
+        return sum(1 for m in self.history if m.estimated_cost_usd is None)
 
     @property
     def total_latency_ms(self) -> float:
         return sum(m.latency_ms for m in self.history)
+
+    def by_provider(self) -> dict: ...
 
 
 class OmniClient:
@@ -629,7 +748,8 @@ class OmniClient:
         doc_parser: Optional[DocumentParserCapability] = None,
         sandbox: Optional[SandboxCapability] = None,
         mcp: Optional[MCPCapability] = None,
-        on_response: Optional[Callable[[ResponseMeta], None]] = None,
+        on_response: Optional[Callable[[ResponseMeta], None]] = None,   # 例外を出しても本処理は失敗させない（warning ログのみ）
+        pricing: Optional[PricingTable] = None,   # 単価表（注入式、ADR-10）。未指定なら Ollama 等の無料プロバイダ以外は None
     ):
         self._chat = chat
         self._judge = judge
@@ -648,81 +768,96 @@ class OmniClient:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        # 各アダプターが保持する非同期HTTPセッション (httpx.AsyncClient等) を安全にクローズ
-        pass
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """設定済みの全 Capability の aclose() を呼び、HTTP セッション (httpx.AsyncClient 等) を閉じる。
+        1 つが失敗しても残りは閉じる（失敗は ExceptionGroup でまとめて送出）"""
+        ...
+
+    def __enter__(self) -> "OmniClient": return self
+    def __exit__(self, *exc) -> None: self.close()
+    def close(self) -> None: ...   # 同期版
 
     @property
     def chat(self) -> ChatCapability:
         if not self._chat:
-            raise NotImplementedError("Chat provider is not configured.")
-        return self._chat
+            raise CapabilityNotConfiguredError("Chat provider is not configured.", provider="omni")
+        return self._instrumented(self._chat)   # 計測プロキシで包んで返す
+
+    @property
+    def tools(self) -> "ToolRunner":
+        """chat / search / sandbox から組み立てたクライアント側ツールループ (§8.4)"""
+        ...
 
     @property
     def judge(self) -> JudgeCapability:
         if not self._judge:
-            raise NotImplementedError("Judge provider is not configured.")
+            raise CapabilityNotConfiguredError("Judge provider is not configured.", provider="omni")
         return self._judge
 
     @property
     def image(self) -> ImageCapability:
         if not self._image:
-            raise NotImplementedError("Image provider is not configured.")
+            raise CapabilityNotConfiguredError("Image provider is not configured.", provider="omni")
         return self._image
 
     @property
     def audio(self) -> AudioCapability:
         if not self._audio:
-            raise NotImplementedError("Audio provider is not configured.")
+            raise CapabilityNotConfiguredError("Audio provider is not configured.", provider="omni")
         return self._audio
 
     @property
     def embedding(self) -> EmbeddingCapability:
         if not self._embedding:
-            raise NotImplementedError("Embedding provider is not configured.")
+            raise CapabilityNotConfiguredError("Embedding provider is not configured.", provider="omni")
         return self._embedding
 
     @property
     def rerank(self) -> RerankCapability:
         if not self._rerank:
-            raise NotImplementedError("Rerank provider is not configured.")
+            raise CapabilityNotConfiguredError("Rerank provider is not configured.", provider="omni")
         return self._rerank
 
     @property
     def search(self) -> SearchCapability:
         if not self._search:
-            raise NotImplementedError("Search provider is not configured.")
+            raise CapabilityNotConfiguredError("Search provider is not configured.", provider="omni")
         return self._search
 
     @property
     def doc_parser(self) -> DocumentParserCapability:
         if not self._doc_parser:
-            raise NotImplementedError("DocumentParser provider is not configured.")
+            raise CapabilityNotConfiguredError("DocumentParser provider is not configured.", provider="omni")
         return self._doc_parser
 
     @property
     def sandbox(self) -> SandboxCapability:
         if not self._sandbox:
-            raise NotImplementedError("Sandbox provider is not configured.")
+            raise CapabilityNotConfiguredError("Sandbox provider is not configured.", provider="omni")
         return self._sandbox
 
     @property
     def mcp(self) -> MCPCapability:
         if not self._mcp:
-            raise NotImplementedError("MCP provider is not configured.")
+            raise CapabilityNotConfiguredError("MCP provider is not configured.", provider="omni")
         return self._mcp
 ```
 
-# **7\. v3.0 統合実装サンプル（非同期並列実行・フォールバック・マルチモーダル・コスト集計）**
+# **7\. 統合実装サンプル（非同期並列実行・フォールバック・マルチモーダル・コスト集計）**
 
-以下のコードは、v3.0で強化された **非同期並列処理 (`asyncio.gather`)、OpenAI ➔ Claude 自動フェイルオーバー、Pathオブジェクトによるメモリ安全なPDF解析、Jevによる高速判定、ローカルOllamaでの画像生成、および総コスト追跡** を組み合わせたプロダクション実装例です。
+> **v3.1 注記**: 最初に実装するのは Chat の Gemini / Ollama アダプターである（実装設計書）。その他のアダプター（Jev・Cohere・Tavily・Mistral OCR・Ollama 画像生成）は将来の実装予定で、このサンプルは全体像を示すためのものである。v3.0 のサンプルにあったモデル名（`gpt-4o`、`claude-3-5-sonnet-latest`）は古いため、Gemini ➔ Ollama の構成に差し替えた。
+
+以下のコードは、**非同期並列処理 (`asyncio.gather`)、Gemini ➔ ローカルOllama 自動フェイルオーバー、Pathオブジェクトによるメモリ安全なPDF解析、Jevによる高速判定、ローカルOllamaでの画像生成、および総コスト追跡** を組み合わせたプロダクション実装例です。
 
 ```py
 import asyncio
 from pathlib import Path
 from omni_ai import OmniClient, FallbackChatAdapter
 from omni_ai.providers import (
-    OpenAIChatAdapter,       # プライマリ対話: OpenAI
-    AnthropicChatAdapter,    # バックアップ対話: Anthropic Claude
+    GeminiChatAdapter,       # プライマリ対話: Google Gemini
+    OllamaChatAdapter,       # バックアップ対話: ローカル Ollama
     JevJudgeAdapter,         # 高速判定: TypeSafe Jev
     OllamaImageAdapter,      # 画像生成: Ollama (ローカル MLX Flux)
     CohereRerankAdapter,     # リランク: Cohere Rerank
@@ -740,10 +875,10 @@ def calculate_roi(initial_cost: float, annual_savings: float) -> float:
     return round(initial_cost / annual_savings, 2)
 
 async def main():
-    # 1. OpenAIがレート制限や障害の時は自動でAnthropicへフォールバックする構成
+    # 1. Gemini がレート制限・障害・残高切れの時は自動でローカル Ollama へフォールバックする構成
     resilient_chat = FallbackChatAdapter([
-        OpenAIChatAdapter(default_model="gpt-4o"),
-        AnthropicChatAdapter(default_model="claude-3-5-sonnet-latest"),
+        GeminiChatAdapter(default_model="gemini-3.8-flash"),
+        OllamaChatAdapter(default_model="qwen3:8b"),   # tools 対応のローカルモデルを指定する（例）
     ])
 
     async with OmniClient(
@@ -831,11 +966,13 @@ if __name__ == "__main__":
 
 ## **8.2 各社プロバイダのツール実行モデル 徹底比較表**
 
+> **v3.1 注記**: Gemini 列と Ollama 列は、2026-11-07 に一次資料で確認して修正した（確認元は実装設計書 §12）。OpenAI 列と Anthropic 列は v3.0 の記述のままで、**未検証**（各アダプターを実装するときに確認する）。
+
 | 比較項目 | OpenAI API | Anthropic Claude API | Google Gemini API | Ollama API |
 | :---- | :---- | :---- | :---- | :---- |
 | **自作ツールの実行方式(Layer 1\)** | クライアント実行type: "function" を定義し、返ってきた引数をアプリが実行して結果を再送信。 | クライアント実行tools に定義し、tool\_use ブロックを受信後、tool\_result を再送信。 | クライアント実行function\_declarations を定義し、function\_call を受けて function\_response を再送信。 | クライアント実行tools を指定し、返ってきた tool\_calls をアプリがローカルで実行して再送信。 |
-| **サーバー側Web検索(Layer 2\)** | 提供ありResponses APIの組み込み web\_search。OpenAI側が検索して引用元付きで回答。 | 提供ありMessages APIの組み込み web\_search (Server Tools)。Anthropic側が自律実行。 | 提供ありGoogle Search Grounding (google\_search)。Google検索エンジンが直接実行。 | なし(完全ローカル環境のため、クライアントが外部検索APIを叩く必要あり) |
-| **サーバー側コード実行(Layer 2\)** | 提供ありcode\_interpreter。クラウドコンテナでPythonを実行し、グラフや計算結果を返却。 | 提供ありServer Toolsの code\_execution。Anthropicのサンドボックス環境でPythonを実行。 | 提供ありCode Execution (code\_execution)。GoogleのPythonサンドボックスで自律計算。 | なし(ローカル端末での実行となり、安全対策はアプリ側の責任) |
+| **サーバー側Web検索(Layer 2\)** | 提供ありResponses APIの組み込み web\_search。OpenAI側が検索して引用元付きで回答。 | 提供ありMessages APIの組み込み web\_search (Server Tools)。Anthropic側が自律実行。 | 提供ありGoogle Search Grounding (`{"google_search": {}}`)。Google検索エンジンが直接実行。自作関数との併用は Gemini 3 以降の Preview 機能で、`toolConfig.includeServerSideToolInvocations: true` が必要。 | ローカル /api/chat にはなし（ツールは function 型のみで、実行は常にクライアント側）。別途 ollama.com の Web Search API（`POST https://ollama.com/api/web_search`、APIキー必須）があり、クライアントが function ツールとして橋渡しすれば使える。 |
+| **サーバー側コード実行(Layer 2\)** | 提供ありcode\_interpreter。クラウドコンテナでPythonを実行し、グラフや計算結果を返却。 | 提供ありServer Toolsの code\_execution。Anthropicのサンドボックス環境でPythonを実行。 | 提供ありCode Execution (`{"code_execution": {}}`)。GoogleのPythonサンドボックスで自律計算（1 回最大 30 秒）。 | なし(ローカル端末での実行となり、安全対策はアプリ側の責任) |
 | **その他のサーバー機能** | ・file\_search (OpenAI側RAG)・image\_generation (DALL-E) | ・web\_fetch (URL先コンテンツ取得)・(特殊) computer\_use (指示はモデル、実行はクライアント) | ・Google Maps連携 (google\_maps)・指定URLの事前解析 (url\_context) | なし |
 | **リモートMCP連携(Layer 3\)** | 対応Responses APIからリモートMCPサーバーへ直接接続可能。 | ネイティブ対応Messages APIからリモートMCPツールを直接ロード・実行可能。 | SDK/エコシステム対応クライアントSDKやエージェントフレームワークで連携。 | クライアント側対応LangChain等の上位レイヤー側でMCPツールをバインド。 |
 | **エージェントループ** | Responses APIが自動管理(1リクエスト内で複数ツールをサーバー側で自律反復) | Server Tools時はサーバー側で自動完結(クライアントツールの場合はアプリ側でループ) | サーバー側で自律実行(SearchやCode Executionは1ターンで内部完結) | 100% クライアント側でループ |
@@ -847,153 +984,105 @@ if __name__ == "__main__":
 最新の /v1/responses（およびAssistants API）では、web\_search や code\_interpreter などの組み込みツールがプロバイダ側（Layer 2）で実行可能。自作関数（type: "function"）と組み込みツールを同一配列で渡せ、組み込みツール実行時はOpenAI側でループを自動処理。  
 **Google Gemini:**  
 Googleの検索インフラと直結した Google Search Grounding（google\_search）により、最新情報の引用メタデータ付き取得が極めて低遅延。  
-code\_execution を有効化すると、数学問題やデータ集計に対してGemini自身が裏でPythonコードを生成・Googleクラウドサンドボックスで実行・エラー自己修正を行い、正しい計算結果のみを返却。  
+code\_execution を有効化すると、数学問題やデータ集計に対してGemini自身が裏でPythonコードを生成・Googleクラウドサンドボックスで実行・エラー自己修正を行い、計算結果を返却。  
+**（v3.1 追記・重要）** Gemini 3 / 4 の関数呼び出しでは、モデル応答に含まれる `thoughtSignature` を次のターンで元の part に付けたまま返さないと HTTP 400 になる。アダプターはモデル応答の parts を加工せずに保持し、そのまま再送する（`ChatMessage.provider_state`、ADR-11）。また、Gemini の公式索引は `generateContent` を legacy、Interactions API を既定と位置づけている（generateContent 自体は引き続きサポート）。  
 **Anthropic (Claude):**  
 最新仕様で web\_search や code\_execution を Server Tools（Anthropicのサーバー側で自動ループ実行されるツール）として正式導入。  
 Computer Use (computer\_20241022) は、ツールスキーマ定義はAnthropicが事前提供するが、実際のOS画面操作やVM実行はクライアント側（Docker等）で走らせるハイブリッド設計。  
 **Ollama:**  
 完全ローカル・オフライン動作のため、クラウド側のマネージドツール（Google検索やホスト型コンテナ）は一切持たない。  
-モデルが引数JSONを出力した後は、100%クライアント側（SDKまたはアプリ）が外部検索APIやローカルDockerを実行して結果を差し戻すエージェントループを回す必要がある。
+モデルが引数JSONを出力した後は、100%クライアント側（SDKまたはアプリ）が外部検索APIやローカルDockerを実行して結果を差し戻すエージェントループを回す必要がある。  
+**（v3.1 追記）** ただし、名前が `:cloud` / `-cloud` で終わるモデルは、ローカルの Ollama を経由して ollama.com 上で実行される（無料ではなく、オフラインでも動かない）。また `/api/chat` は、既定で文脈長 `num_ctx` を超えた古い履歴を**黙って切り捨てる**（エラーにならない）。
 
-## **8.4 ハイブリッド・ツール実行ルーター設計 (omni\_ai/tools.py)**
+## **8.4 組み込みツールの解決とクライアント側ツールループ (omni\_ai/tools.py)**
 
-OmniAI SDKでは、「サーバー側実行ができるプロバイダ（OpenAI/Gemini/Claude）」と「自力で実行しなければならないプロバイダ（Ollama）」の差異を吸収するため、SDK共通の組み込みツールシンボル（BuiltinTool） と 透過的エージェントループ（HybridToolRouter） を提供します。
+v3.0 の `HybridToolManager` は v3.1 で次のように置き換えた。v3.0 の問題点は、①`if provider_name == ...` の分岐がツール側に集中していた、②`provider_name` が `ChatCapability` に定義されていなかった、③ツール結果を差し戻す前に、アシスタントの `tool_calls` メッセージを履歴に足していなかった、④同期の handler を非同期ループの中で直接呼んでいた、⑤未知のツール名を黙って無視していた、⑥`max_turns` に達しても黙って返していた、⑦Gemini 用のツール JSON（`{"type": "google_search"}`）が誤っていた、の 7 点である。
+
+**(1) 組み込みツールはアダプターが自己申告する (ADR-09)**  
+各 `ChatCapability` は `supported_builtins` で、サーバー側で実行できる `BuiltinTool` を宣言し、ネイティブのツール JSON への変換はアダプターの中で行う。
+
+| BuiltinTool | Gemini | Ollama |
+| :---- | :---- | :---- |
+| `WEB_SEARCH` | `{"google_search": {}}` | 非対応 |
+| `CODE_EXECUTION` | `{"code_execution": {}}` | 非対応 |
+
+非対応の組み込みツールを `agenerate(tools=[...])` に直接渡すと、`UnsupportedFeatureError` になる。
+
+**(2) 代行が必要なら ToolRunner を明示的に使う**
 
 ```py
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
-from .types import ChatMessage, ChatResponse, Role, ToolDefinition
+from typing import Any, Literal, Sequence
+from .types import ChatMessage, ChatResponse, ResponseMeta, ToolSpec
 
-class BuiltinTool(str, Enum):
-    WEB_SEARCH = "builtin::web_search"
-    CODE_EXECUTION = "builtin::code_execution"
+class ToolRunner:
+    """クライアント側ツールループ。非対応の BuiltinTool は search / sandbox Capability による OmniTool に置き換えて代行する"""
+    def __init__(self, chat, *, search=None, sandbox=None, max_turns: int = 8,
+                 parallel_tool_calls: bool = True,
+                 on_tool_error: Literal["return_to_model", "raise"] = "return_to_model"): ...
+    def run(self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec], **opts) -> "ToolRunResult": ...
+    async def arun(self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec], **opts) -> "ToolRunResult": ...
 
-class HybridToolManager:
-    """
-    プロバイダのサーバー実行可否を判定し、
-    ネイティブサーバーツール変換 or クライアント側自動実行エージェントループを透過的に行う機構
-    """
-    def __init__(self, search_capability=None, sandbox_capability=None):
-        self.search = search_capability
-        self.sandbox = sandbox_capability
-
-    def adapt_tools_for_provider(
-        self,
-        tools: List[Any],
-        provider_name: str,
-    ) -> tuple[List[Any], Dict[str, Callable]]:
-        """
-        指定されたプロバイダ向けにツールリストを最適化する。
-        - プロバイダがサーバー実行対応 (OpenAI/Gemini/Claude) の場合: ネイティブ組み込みツール型にマッピング
-        - プロバイダが非対応 (Ollama等) の場合: クライアント実行用ToolDefinitionに変換し、ローカル実行ハンドラを登録
-        """
-        api_tools = []
-        client_handlers: Dict[str, Callable] = {}
-
-        for t in tools:
-            if t == BuiltinTool.WEB_SEARCH:
-                if provider_name == "openai":
-                    api_tools.append({"type": "web_search"})
-                elif provider_name == "gemini":
-                    api_tools.append({"type": "google_search"})
-                elif provider_name == "anthropic":
-                    api_tools.append({"type": "web_search_20260209"})
-                elif provider_name == "ollama":
-                    # Ollama向け: SDKのSearchCapabilityをローカルFunction Callingとして定義
-                    def _local_search(query: str) -> str:
-                        res = self.search.search(query=query, max_results=5)
-                        return "\n".join([f"[{r.title}] {r.content}" for r in res.results])
-                    
-                    api_tools.append(ToolDefinition(
-                        name="web_search",
-                        description="インターネット上の最新情報を検索する",
-                        parameters_schema={
-                            "type": "object",
-                            "properties": {"query": {"type": "string", "description": "検索クエリ"}},
-                            "required": ["query"],
-                        }
-                    ))
-                    client_handlers["web_search"] = _local_search
-            elif isinstance(t, ToolDefinition):
-                api_tools.append(t)
-
-        return api_tools, client_handlers
-
-    async def execute_agent_loop(
-        self,
-        chat_capability,
-        messages: List[ChatMessage],
-        tools: List[Any],
-        max_turns: int = 5,
-        **kwargs: Any,
-    ) -> ChatResponse:
-        """
-        Ollama等のクライアント実行型プロバイダに対し、
-        ツール呼び出しが不要になるまで自動でローカル関数を実行して結果を差し戻すループ
-        """
-        provider_name = chat_capability.provider_name
-        api_tools, handlers = self.adapt_tools_for_provider(tools, provider_name)
-
-        current_messages = list(messages)
-        for _ in range(max_turns):
-            response = await chat_capability.agenerate(
-                messages=current_messages,
-                tools=api_tools,
-                **kwargs,
-            )
-            # ツール呼び出しがなければ完了
-            if not response.tool_calls:
-                return response
-
-            # サーバー側実行ツール（OpenAI Responses API等）ならすでに完了している
-            if response.finish_reason == "stop" and not handlers:
-                return response
-
-            # クライアント実行ハンドラが存在する場合は自動実行してループ継続
-            for tc in response.tool_calls:
-                if tc.name in handlers:
-                    tool_result = handlers[tc.name](**tc.arguments)
-                    current_messages.append(ChatMessage(
-                        role=Role.TOOL,
-                        content=str(tool_result),
-                        tool_call_id=tc.id,
-                    ))
-        return response
+class ToolRunResult(BaseModel):
+    response: ChatResponse          # 最後の応答
+    messages: List[ChatMessage]     # ループ中に追加されたものを含む全履歴
+    turns: int
+    metas: List[ResponseMeta]
 ```
+
+ループの手順:
+1. `BuiltinTool` を解決する（`supported_builtins` にあればそのまま渡し、無ければ代行用の `OmniTool` に置き換える。代行に必要な Capability が無ければ `UnsupportedFeatureError`）
+2. `agenerate` を呼ぶ。`tool_calls` が空なら終了する
+3. `response.to_message()`（`tool_calls` と `provider_state` を含む）を履歴に足す
+4. 各 `ToolCall` の handler を実行する（同期関数はスレッドで実行し、`parallel_tool_calls=True` なら並行して実行する）。未知の名前は「unknown tool」という結果を、引数の検証失敗や例外は `on_tool_error` に従った結果を返す
+5. `Role.TOOL`・`tool_call_id`・`name` を付けて結果を履歴に足し、2 に戻る
+6. `max_turns` に達したら `ToolLoopLimitError`（途中の結果を保持する）を送出する
 
 ## **8.5 利用者側のメリット**
 
-開発者はプロバイダごとの仕様差を意識することなく、以下のように一行でツールを指定できます。
-
 ```py
-# OpenAIやGeminiではサーバー側インフラで超低遅延実行され、
-# OllamaではSDKが自動で裏でTavily検索を実行して結果を差し戻す。
+# Gemini: サーバー側（Google検索）で実行される
 response = await ai.chat.agenerate(
     messages=[ChatMessage(role=Role.USER, content="2026年最新のAI動向を調べて")],
     tools=[BuiltinTool.WEB_SEARCH],
 )
+
+# プロバイダを問わず同じ書き方: Gemini ではネイティブ実行、Ollama では SDK が SearchCapability (例: Tavily) で代行してループする
+result = await ai.tools.arun(
+    messages=[ChatMessage(role=Role.USER, content="2026年最新のAI動向を調べて")],
+    tools=[BuiltinTool.WEB_SEARCH, calculate_roi],
+)
+print(result.response.content)
 ```
+
+v3.0 は「`agenerate` に渡すだけで、Ollama でも裏で検索が走る」としていたが、v3.1 ではやめた。`agenerate` が裏で何ターンも呼び出しを重ねると、1 回の呼び出しのコスト・レイテンシ・履歴の意味が、プロバイダによって変わってしまうためである。複数ターンになりうる処理は `ai.tools.arun()` に集める。
 
 # **9\. マルチプラットフォーム（Windows / Linux / macOS）実装規約とアーキテクチャ決定記録 (ADR)**
 
 Windows、Linux、macOS の3大OS環境（およびDocker/WSL2環境）で一切の挙動差異やビルドエラーを起こさせず、開発者が実装時に迷わないための**アーキテクチャ決定記録（ADR: Architecture Decision Records）**と**OS差分吸収レイヤー仕様**を定義します。
 
-## **9.1 実装における5大アーキテクチャ決定事項 (ADR)**
+## **9.1 実装におけるアーキテクチャ決定事項 (ADR)**
 
 | ADR番号 | 決定テーマ | 採用方針（結論） | 理由・背景 |
 | :---- | :---- | :---- | :---- |
-| **ADR-01** | **OS差分の隔離場所** | **omni\_ai/compat/ 単一モジュールに完全隔離**（各アダプター内での `sys.platform` や `os.name` 分岐を全面禁止） | アダプターやビジネスロジック内にOS判定 (`if sys.platform == "win32":`) が散在するとテスト漏れや保守破綻を招くため、OS固有処理はすべて `compat` レイヤーの関数経由で呼び出す。 |
-| **ADR-02** | **HTTP通信基盤の統一** | **httpx \+ anyio ベースのPure Python実装を標準採用**（各社公式SDKへのハード依存を排除） | 全10社の公式SDKを必須依存にするとPydanticやgRPC/C拡張のバージョン競合が起き、特にWindows環境でC++ビルドツール不足による `pip install` 失敗が多発するため。 |
+| **ADR-01** | **OS差分の隔離場所** | **omni\_ai/compat.py 単一モジュールに完全隔離**（各アダプター内での `sys.platform` や `os.name` 分岐を全面禁止） | アダプターやビジネスロジック内にOS判定 (`if sys.platform == "win32":`) が散在するとテスト漏れや保守破綻を招くため、OS固有処理はすべて `compat` レイヤーの関数経由で呼び出す。 |
+| **ADR-02** | **HTTP通信基盤の統一** | **httpx \+ anyio ベースのPure Python実装を標準採用**（各社公式SDKへのハード依存を排除） | 全10社の公式SDKを必須依存にするとPydanticやgRPC/C拡張のバージョン競合が起き、特にWindows環境でC++ビルドツール不足による `pip install` 失敗が多発するため。**（v3.1 明確化）** 禁止するのは「コア依存」と「HTTP で直接叩けるプロバイダの公式SDK」への依存。プロトコルの参照実装が SDK そのものであるもの（MCP）や、公開 HTTP 仕様が無いもの（E2B・Jev 等）は、**任意依存 (extras) に限って**公式SDKを使ってよい（§9.4 の optional-dependencies はこの例外にあたる）。 |
 | **ADR-03** | **パッケージ配布形態** | **Pure Python Wheel (py3-none-any.whl) の保証**コア依存は `pydantic`, `httpx`, `platformdirs`, `anyio` の4つのみ | OS固有のネイティブバイナリ（Rust/C++コンパイル）をコアから排除し、Windows / Linux (x86\_64, ARM64) / macOS (Intel, Apple Silicon) すべてで単一Wheelが即時インストールできるようにする。 |
 | **ADR-04** | **設定と認証の解決順序** | **①引数明示 ➔ ②OMNI\_\*環境変数 ➔ ③各社標準環境変数 ➔ ④OS標準設定ファイル** の厳格な4段階優先順位 | 開発環境（`.env` / 設定ファイル）と本番コンテナ環境（環境変数注入）でコード変更なしに挙動を統一するため。 |
 | **ADR-05** | **テストマトリクス基準** | **GitHub Actions 等での3 OS × Python 3.11+ マトリクスCI必須化** | パス区切り文字やファイルロック、文字コードのバグをPR段階で機械的に検出するため。 |
+| **ADR-06** | **Sync / Async 二重実装の作り方** (v3.1) | **sans-IO 方式**: 要求組み立て・応答解釈を I/O の無い純関数 (codec) に寄せ、`httpx.Client` / `httpx.AsyncClient` の薄い transport 2 本から呼ぶ。同期版を `asyncio.run()` で作らない | 既にイベントループが走っている環境 (Jupyter 等) でも同期 API が壊れない。代償は transport が 2 本になること。 |
+| **ADR-07** | **ストリーミング中のフォールバック** (v3.1) | 最初のイベント送出前に限り切り替える。送出後の失敗は `StreamInterruptedError` | 2 社の出力が混ざった応答を黙って返さないため。代償は途中切断時に呼び出し側の再試行が要ること。 |
+| **ADR-08** | **再試行とフォールバックの順序** (v3.1) | 同一プロバイダ内の再試行 (`RetryPolicy`、transport 層) → 次プロバイダへのフォールバック (router 層) | 一時的な 429/503 で即座に別社へ移るとコストと品質が変わるため。代償は最悪待ち時間の増加 (既定の試行回数を 2 と小さくする)。 |
+| **ADR-09** | **組み込みツールの解決** (v3.1) | アダプターが `supported_builtins` で自己申告し、変換もアダプター内で行う。代行ループは `ToolRunner` で明示的に行う | ツール側に `if provider_name == ...` 分岐を集めないため。代償は v3.0 §8.5 の「agenerate に渡すだけで自動代行」をやめたこと。 |
+| **ADR-10** | **コスト推定** (v3.1) | 単価表 `PricingTable` を注入する方式。単価不明は `None`（0 にしない）。SDK に単価表は同梱しない | 古い単価が黙って使われ続けるのを防ぐため。代償は単価表の保守が利用者側になること。 |
+| **ADR-11** | **プロバイダ固有の不透明な状態** (v3.1) | `ChatMessage.provider_state` / `ToolCall.provider_state` に保持し、アダプターだけが読み書きする | Gemini 3 以降の thought signature を欠落させずに次ターンへ渡すため（欠落すると HTTP 400）。 |
+| **ADR-12** | **`@omni_tool` の戻り値** (v3.1) | 元の関数を `handler` として保持する呼び出し可能な `OmniTool` を返す | v3.0 では関数が `ToolDefinition` に置き換わり、ローカル実行できなかったため。 |
 
 ## **9.2 OS差分が発生する5つの領域と標準吸収ルール**
 
 | 領域 | Windows 特有の挙動・課題 | Linux 特有の挙動・課題 | macOS 特有の挙動・課題 | SDKでの標準吸収ルール（omni\_ai/compat） |
 | :---- | :---- | :---- | :---- | :---- |
 | **1\. ファイルパスと文字コード** | ・バックスラッシュ (`\`) 区切り・標準エンコーディングが `cp932` (Shift-JIS)・開いている一時ファイルを別プロセスから開けない排他ロック仕様 | ・スラッシュ (`/`) 区切り・大文字小文字を厳密に区別 (Case-sensitive)・UTF-8標準 | ・スラッシュ (`/`) 区切り・デフォルトAPFSは大文字小文字を区別しない・ファイル名濁点のNFD正規化問題 | ・文字列連結や `os.path` を禁止し **`pathlib.Path` に完全統一**・全ファイルI/Oで `encoding="utf-8"` を強制・ファイル名比較時は `unicodedata.normalize("NFC", name)` を適用・一時ファイルは閉じてからパスを渡す共通コンテキストマネージャを使用 |
-| **2\. ローカルAI・GPUバックエンド** | ・NVIDIA CUDA または DirectML・OllamaのMLX系画像生成モデル (`x/flux2-klein`等) が非対応の場合あり | ・NVIDIA CUDA / AMD ROCm・サーバー用途ではVRAM管理が厳格 | ・Apple Silicon Unified Memory (Metal / MLX)・OllamaのMLX画像生成がネイティブ高速稼働 | ・`compat.detect_local_capabilities()` でローカルOllamaの対応機能を事前プローブ・ローカル画像生成非対応OSでは自動的にクラウド `ImageCapability` (OpenAI/Gemini) またはローカルDiffusers互換APIへ透過フォールバック |
+| **2\. ローカルAI・GPUバックエンド** | ・NVIDIA CUDA または DirectML・OllamaのMLX系画像生成モデル (`x/flux2-klein`等) が非対応の場合あり | ・NVIDIA CUDA / AMD ROCm・サーバー用途ではVRAM管理が厳格 | ・Apple Silicon Unified Memory (Metal / MLX)・OllamaのMLX画像生成がネイティブ高速稼働（**v3.1 注記**: Ollama の画像生成は 2026-01-20 公開の experimental 機能で、公式ブログでは macOS のみ。公式 API リファレンスに画像生成のエンドポイントは未掲載。また 2026-11-07 時点で Ollama 0.17.7 の一部 MLX モデル (`gemma4:*-mlx`) が `unsupported architecture` で起動失敗することを実測） | ・`compat.detect_local_capabilities()` でローカルOllamaの対応機能を事前プローブ・ローカル画像生成非対応OSでは自動的にクラウド `ImageCapability` (OpenAI/Gemini) またはローカルDiffusers互換APIへ透過フォールバック |
 | **3\. サブプロセス・MCP (stdio) 起動** | ・`npx` や `uvx` が `.cmd` / `.exe` 拡張子なしでは `FileNotFoundError` になる・`SIGTERM` が機能せずプロセスツリーが孤児化しやすい | ・POSIXシグナル (`SIGTERM` \-\> `SIGKILL`) で正常終了可能 | ・Linux同様POSIX準拠だが、GUI起動時は環境変数 `PATH` が最小限になりやすい | ・コマンド実行前に必ず **`shutil.which()` でフルパス解決**・プロセス終了時はWindowsでは `taskkill /F /T /PID` または Job Object、POSIXではプロセスグループ (`os.killpg`) で子プロセスごと確実に終了 |
 | **4\. キャッシュ・設定保存先ディレクトリ** | `%LOCALAPPDATA%\omni_ai` | `~/.config/omni_ai``~/.cache/omni_ai` (XDG準拠) | `~/Library/Application Support/omni_ai``~/Library/Caches/omni_ai` | ・`~/.omni_ai` のような直書きを禁止し、**`platformdirs` ライブラリでOS標準パスを自動取得** |
 | **5\. ローカルホスト・コンテナ通信** | ・WSL2内やDocker Desktopからは `host.docker.internal` またはvEthernet IPが必要 | ・Docker内からは `172.17.0.1` または `--network host` が必要 | ・Docker Desktop内からは `host.docker.internal` が必要 | ・`localhost:11434` 接続失敗時、コンテナ内実行を検知したら自動で `host.docker.internal` 等へフォールバック解決 |
@@ -1093,7 +1182,10 @@ class PlatformCompat:
         if configured_url:
             return configured_url.rstrip("/")
         if env_url := os.environ.get("OLLAMA_HOST"):
-            return env_url if env_url.startswith("http") else f"http://{env_url}"
+            # v3.1: Ollama 本体と同じ解釈に揃える
+            #   スキーム省略 → http / ポート省略 → 11434（スキーム明示時は http=80, https=443）
+            #   0.0.0.0 (待ち受け用アドレス) は接続先として 127.0.0.1 に読み替える
+            return PlatformCompat._normalize_ollama_host(env_url)
         # Dockerコンテナ内からの実行判定 (/.dockerenv の存在チェック)
         if Path("/.dockerenv").exists():
             return "http://host.docker.internal:11434"
@@ -1104,27 +1196,24 @@ class PlatformCompat:
 
 マルチプラットフォームでコンパイルエラーを起こさないための標準ディレクトリ構成と `pyproject.toml` 仕様です。
 
+v3.1 では src レイアウトを採用し、プロバイダごとに codec（純関数）を分けたサブパッケージにする（ADR-06）。今回実装する範囲（コア＋Chat の Gemini / Ollama）の詳細な構成は実装設計書 §3 を参照。
+
 ```
-omni_ai/
+src/omni_ai/
 ├── __init__.py          # 公開API (OmniClient, BuiltinTool, 例外, 主要型)
 ├── compat.py            # OS差分吸収レイヤー (Windows/Linux/macOS対応)
-├── config.py            # 環境変数・設定ファイルローダー
+├── config.py            # 環境変数・設定ファイルローダー (ADR-04)
 ├── exceptions.py        # 統一例外階層 (OmniError等)
-├── types.py             # Pydantic共通データモデル・マルチモーダル型
+├── types/               # Pydantic共通データモデル・マルチモーダル型（`omni_ai.types` からの import は v3.0 と互換）
 ├── capabilities.py      # 全10領域のSync/Async抽象基底クラス
+├── pricing.py           # PricingTable (ADR-10)
 ├── router.py            # OmniClient, FallbackChatAdapter, TelemetryTracker
-├── tools.py             # HybridToolManager, @omni_tool デコレータ
+├── tools.py             # ToolRunner（@omni_tool / BuiltinTool は types に置く）
+├── _http/               # transport (httpx), RetryPolicy, SSE / NDJSON パーサー
 └── providers/           # プロバイダ別アダプター実装 (遅延インポート対応)
-    ├── openai.py
-    ├── anthropic.py
-    ├── gemini.py
-    ├── ollama.py
-    ├── jev.py
-    ├── cohere.py
-    ├── tavily.py
-    ├── mistral_ocr.py
-    ├── e2b_sandbox.py
-    └── mcp_client.py
+    ├── gemini/          # codec.py, files.py
+    ├── ollama/          # codec.py
+    ├── openai/  anthropic/  jev/  cohere/  tavily/  mistral_ocr/  e2b_sandbox/  mcp_client/   # 将来
 ```
 
 ```
@@ -1134,14 +1223,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omni-ai-sdk"
-version = "3.0.0"
+version = "0.1.0"   # パッケージの版は仕様書の版 (v3.1) とは独立に 0.x から始める
 description = "Cross-platform Multi-Provider Unified AI SDK"
 readme = "README.md"
 requires-python = ">=3.11"
 # コア依存は100% Pure PythonでWindows/Linux/macOSどこでもバイナリビルド不要
 dependencies = [
     "pydantic>=2.7.0",
-    "httpx[http2]>=0.27.0",
+    "httpx[http2]>=0.27.0",   # h2 も Pure Python。HTTP/2 は既定では無効 (http2=True で有効化)
     "platformdirs>=4.2.0",
     "anyio>=4.4.0",
 ]
@@ -1150,20 +1239,45 @@ dependencies = [
 jev = ["typesafe-sdk>=0.1.0"]
 mcp = ["mcp>=1.0.0"]
 sandbox = ["e2b-code-interpreter>=1.0.0"]
-dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "respx>=0.21.0", "ruff>=0.6.0", "mypy>=1.11.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "respx>=0.21.0", "hypothesis>=6.100.0", "ruff>=0.6.0", "mypy>=1.11.0"]
 ```
 
 ## **9.5 開発者向けコーディング規約（禁止事項チェックリスト）**
 
 実装担当者がプルリクエストを出す前に必ず守るべき6つの鉄則です：
 
-8. **アダプター内で sys.platform や os.name を直接参照しない**（必ず `PlatformCompat` を呼ぶ）。  
-9. **open() や Path.read\_text() / write\_text() を encoding="utf-8" なしで呼ばない**（Windowsの `cp932` クラッシュ防止）。  
-10. **パス文字列を "/" や "\\\\" で手動結合しない**（必ず `Path` オブジェクトで操作する）。  
-11. **tempfile.NamedTemporaryFile をそのまま別関数や外部コマンドに渡さない**（必ず `PlatformCompat.safe_temp_file()` を使う）。  
-12. **外部CLI（npx, uvx, ffmpeg 等）を shutil.which 解決なしで subprocess 起動しない**（Windowsでの `.cmd` 未解決エラー防止）。  
-13. **localhost を文字列リテラルでハードコードしない**（IPv6解決遅延やDocker内通信を考慮し、`127.0.0.1` または `PlatformCompat.resolve_ollama_base_url()` を使う）。
+1. **アダプター内で sys.platform や os.name を直接参照しない**（必ず `PlatformCompat` を呼ぶ）。  
+2. **open() や Path.read\_text() / write\_text() を encoding="utf-8" なしで呼ばない**（Windowsの `cp932` クラッシュ防止）。  
+3. **パス文字列を "/" や "\\\\" で手動結合しない**（必ず `Path` オブジェクトで操作する）。  
+4. **tempfile.NamedTemporaryFile をそのまま別関数や外部コマンドに渡さない**（必ず `PlatformCompat.safe_temp_file()` を使う）。  
+5. **外部CLI（npx, uvx, ffmpeg 等）を shutil.which 解決なしで subprocess 起動しない**（Windowsでの `.cmd` 未解決エラー防止）。  
+6. **localhost を文字列リテラルでハードコードしない**（IPv6解決遅延やDocker内通信を考慮し、`127.0.0.1` または `PlatformCompat.resolve_ollama_base_url()` を使う）。
 
 # **10\. まとめ**
 
-v3.0仕様により、機能面の網羅性（全10領域のプロバイダ・ミックス）に加え、**非同期並列I/O・マルチモーダル入力・メモリ安全性・統一エラーと自動フェイルオーバー・横断コスト監視**という実運用に不可欠な要件がすべて満たされたプロダクション仕様となっています。
+v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイダ・ミックス）に加え、**非同期並列I/O・マルチモーダル入力・メモリ安全性・統一エラーと自動フェイルオーバー・横断コスト監視**という実運用に不可欠な要件がすべて満たされたプロダクション仕様となっています。
+# **11\. 変更履歴**
+
+## **v3.1 (2026-11-07)**
+
+コア層＋Chat（Gemini / Ollama）の実装設計（[実装設計書](./OmniAI%20SDK%20実装設計書%20(コア＋Chat).md)）にあわせて、v3.0 の不整合・欠落を修正した。
+
+| ID | 節 | 修正内容 | 理由 |
+| :---- | :---- | :---- | :---- |
+| D-01 | §2 | 表の 6〜10 行目が別の表に分かれていたのを 1 つに戻した | 書式の崩れ |
+| D-02 | §3 | 例外を追加: `PermissionDeniedError` `InvalidRequestError` `UnsupportedFeatureError` `NotFoundError` `QuotaExceededError` `ProviderConnectionError` `ProviderTimeoutError` `StreamInterruptedError` `ToolLoopLimitError` `CapabilityNotConfiguredError`。`retryable` の意味を「同じ要求の再送で成功しうるか」に限定 | 接続失敗（Ollama 未起動）・残高切れ（Gemini 402）・404 などの受け皿が無かった |
+| D-03 | §4 | `MediaSource` から素の `str` を除外し `UrlRef` を追加。`FileRef.provider` を追加 | `str` がパス・URL・base64 のどれか曖昧だった |
+| D-04 | §4 | `@omni_tool` は呼び出し可能な `OmniTool` を返す (ADR-12) | 関数が `ToolDefinition` に置き換わり、ローカル実行できなかった |
+| D-05 | §4 | `ToolCall` / `ChatMessage` に `provider_state` (ADR-11)、TOOL メッセージに `name` | Gemini 3 以降の thought signature 必須化、Gemini / Ollama が名前でツール結果を対応づけるため |
+| D-06 | §4 | `StreamEvent.type` の `tool_call_delta` を `tool_call` に改名し、`reasoning_delta` `citation` と `response` を追加 | 「delta」と名乗りながら完成品を運ぶ矛盾。完了時に非ストリームと同じ `ChatResponse` を得られるように |
+| D-07 | §4 | `FinishReason` を共通化し `error` を追加。`ChatResponse` に `reasoning` `citations` `to_message()`、`Usage.reasoning_tokens`、`ResponseMeta` に `time_to_first_event_ms` `attempts` `fallback_from`。`estimated_cost_usd` を Optional に | 思考トークン・出典・フォールバック経路が観測できなかった。単価不明を 0 と区別するため |
+| D-08 | §5 | 共通基底 `Capability`（`provider_name`、`close`/`aclose`、コンテキストマネージャ）。主入力以降をキーワード専用に。`**kwargs` を名前空間付きの `**provider_options` に。`tool_choice` `timeout` を追加。`supported_builtins` | v3.0 §8.4 が未定義の `provider_name` を参照していた。セッションを閉じる手段が無かった |
+| D-09 | §6 | `FallbackChatAdapter` に `fallback_on` `model_map`、4 メソッド全実装、ストリームの切り替え規則 (ADR-07)、再試行との順序 (ADR-08) | v3.0 は `agenerate` のみで、`retryable` とフォールバック可否が混同されていた。別プロバイダに同じモデル名を渡していた |
+| D-10 | §6 | 計測を `OmniClient` の計測プロキシに一元化。`TelemetryTracker` をスレッド安全に。`__aexit__` で全 Capability を閉じる。未設定時の例外を `CapabilityNotConfiguredError` に | v3.0 では `on_response` が呼ばれる経路が無く、`__aexit__` が何もしなかった |
+| D-11 | §7 | サンプルの Chat 構成を Gemini ➔ Ollama に変更し、古いモデル名を除去 | `gpt-4o` / `claude-3-5-sonnet-latest` は古い。最初に実装するのは Gemini / Ollama |
+| D-12 | §8.2, §8.3 | Gemini・Ollama 列を一次資料で確認して修正（Gemini のツール JSON、併用の Preview 条件、thought signature、generateContent の legacy 扱い、Ollama の Web Search API、`:cloud` モデル、文脈の黙った切り捨て）。OpenAI・Anthropic 列は未検証と明記 | v3.0 の記述は未検証だった |
+| D-13 | §8.4, §8.5 | `HybridToolManager` を「アダプターの自己申告 (ADR-09)」＋`ToolRunner` に置き換え | v3.0 のループに 7 つの欠陥（§8.4 冒頭）があった |
+| D-14 | §9.1 | ADR-02 の範囲を明確化。ADR-06〜12 を追加。ADR-01 のパス表記を `compat.py` に統一 | ADR-02 と §9.4 の任意依存が矛盾して見えた |
+| D-15 | §9.2, §9.3 | Ollama 画像生成の位置づけを注記。`OLLAMA_HOST` の解釈を Ollama 本体と一致させた | 一次資料・実測に基づく |
+| D-16 | §9.4 | src レイアウト、`types/` パッケージ化、`_http/` `pricing.py` 追加、パッケージ版を 0.1.0 から開始、dev 依存に hypothesis | 実装設計書 §3 にあわせた |
+| D-17 | §9.5 | 番号が 8〜13 になっていたのを 1〜6 に修正 | 書式の崩れ |

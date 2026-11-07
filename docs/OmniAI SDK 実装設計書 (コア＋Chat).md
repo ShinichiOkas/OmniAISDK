@@ -1,0 +1,739 @@
+# OmniAI SDK 実装設計書 — コア層 ＋ Chat 縦切り (Gemini / Ollama)
+
+| 項目 | 値 |
+| :--- | :--- |
+| 対象仕様 | [設計仕様書 v3.1](./マルチプロバイダ統合Python%20SDK%20(OmniAI%20SDK)%20設計仕様書.md) |
+| 範囲 | コア層（例外・型・Capability 抽象・設定・OS差分吸収・HTTP基盤・ルーター・テレメトリ・ツール基盤）＋ Chat Capability の Gemini / Ollama アダプター |
+| 範囲外 | Chat 以外 9 領域のアダプター（抽象インタフェースのみ本書に従って整える） |
+| 状態 | 初版（2026-11-07）。師匠の承認済み（2026-11-07） |
+| 文書の正の向き | 実装前は**本書が正**。実装着手後に乖離が出たら、本書を実装に合わせて改訂する |
+
+> 本書の外部 API に関する記述には、確認状態を付ける。
+> **[確認済]** = 一次資料（公式ドキュメント）で確認、**[未検証]** = 確認できていない。URL は §12 にまとめる。
+
+---
+
+## 1. 目的と範囲
+
+設計仕様書（以下「仕様書」）は 10 領域・約 25 プロバイダを定義するが、コードはまだ無い。
+本書は、そのうち **コア層と Chat 1 領域を、クラウド (Google Gemini) とローカル (Ollama) の 2 プロバイダで end-to-end に通す**ための実装設計を定める。
+
+2 プロバイダの組み合わせで、次の経路をすべて実地に通す。
+
+| 検証したい経路 | Gemini | Ollama |
+| :--- | :--- | :--- |
+| Layer 1: クライアント実行ツール（関数呼び出しループ） | ✓ | ✓ |
+| Layer 2: サーバー実行の組み込みツール（Web検索・コード実行） | ✓（ネイティブ） | ✗ → SDK が SearchCapability で代行 |
+| フォールバック（クラウド障害 → ローカル） | 1 段目 | 2 段目 |
+| ストリーミング（SSE / NDJSON という異なるワイヤ形式） | SSE | NDJSON |
+| マルチモーダル入力（画像・PDF） | inline / Files API | 画像のみ base64 |
+
+---
+
+## 2. 設計判断一覧（実装 ADR）
+
+仕様書 ADR-01〜05 はそのまま有効。本書で以下を追加する（仕様書 v3.1 §9.1 にも反映済み）。
+
+| ADR | 決定テーマ | 採用方針 | 代償（トレードオフ） |
+| :--- | :--- | :--- | :--- |
+| **ADR-06** | Sync / Async の二重実装の作り方 | **sans-IO 方式**: 要求の組み立て・応答の解釈をすべて I/O を持たない純関数（`codec`）に寄せ、`httpx.Client` と `httpx.AsyncClient` の 2 つの薄い transport から呼ぶ。同期版を `asyncio.run()` で非同期版から作ることはしない | transport が 2 本になる（ただし各 30〜60 行程度）。代わりに、Jupyter など既にイベントループが走っている環境でも同期 API が壊れない |
+| **ADR-07** | ストリーミング中のフォールバック | **最初のイベントを返す前に限り**、別プロバイダへ切り替える。1 つでもイベントを返した後の失敗は `StreamInterruptedError` として送出し、切り替えない | 途中で切れた応答は呼び出し側で再試行が要る。代わりに、2 社の出力が混ざった応答が黙って返ることは起きない |
+| **ADR-08** | 再試行とフォールバックの順序 | **再試行（同一プロバイダ）→ フォールバック（次のプロバイダ）**。再試行は transport 層の `RetryPolicy`（指数バックオフ＋ジッタ、`retry_after` 優先）。フォールバックはルーター層 | 最悪の場合の待ち時間が「再試行回数 × プロバイダ数」に伸びる → `RetryPolicy.max_attempts` の既定は 2 と小さめにする |
+| **ADR-09** | 組み込みツール（`BuiltinTool`）の解決 | **アダプターが自分の対応範囲を宣言する**（`supported_builtins`）。`HybridToolManager` 内の `if provider_name == ...` 分岐は廃止。未対応の組み込みツールを `agenerate(tools=[...])` に直接渡すと `UnsupportedFeatureError` | 仕様書 §8.5 にあった「`agenerate` に渡すだけで Ollama でも裏で検索が走る」は**やめる**。代行が必要なら `ai.tools.arun()`（ツールランナー）を明示的に使う。理由: `agenerate` が裏で何ターンも呼び出しを重ねると、コスト・レイテンシ・履歴の意味が呼び出しごとに変わってしまうため |
+| **ADR-10** | コスト推定 | `PricingTable`（モデル ID → 入力・出力・キャッシュ単価）を**注入する方式**。単価が分からないモデルの `estimated_cost_usd` は **`None`**（0 にしない）。Ollama のローカルモデルは 0.0、Ollama 経由のクラウドモデル（`:cloud` / `-cloud`）は `None`（§8.1） | 単価表の保守は利用者の責任になる。SDK に同梱するのは「既定値（取得日付き）」の扱い |
+| **ADR-11** | プロバイダ固有の不透明な状態 | `ChatMessage` と `ToolCall` に `provider_state: dict` を持たせ、アダプターだけが読み書きする（例: Gemini の thought signature を次のターンへ引き継ぐ） | 履歴をプロバイダ間で使い回すと、他社の `provider_state` は捨てられる（フォールバック先では無視する） |
+| **ADR-12** | `@omni_tool` の戻り値 | 関数を `OmniTool`（`ToolDefinition` を継承し、元の関数を `handler` として保持する**呼び出し可能な**オブジェクト）に置き換える | 「関数そのもの」ではなくなる（`inspect` などで見ると型が変わる） |
+
+---
+
+## 3. パッケージ構成（今回作るもの）
+
+```text
+src/omni_ai/
+├── __init__.py            # 公開 API の再エクスポート（遅延 import なし・軽量なもののみ）
+├── _version.py
+├── exceptions.py          # 統一例外階層
+├── types/
+│   ├── __init__.py        # 公開型の再エクスポート（仕様書の omni_ai.types を維持）
+│   ├── common.py          # Usage, ResponseMeta, FinishReason
+│   ├── media.py           # MediaSource, FileRef, UrlRef, MediaPart, TextPart
+│   ├── chat.py            # Role, ChatMessage, ChatResponse, StreamEvent, Citation
+│   ├── tools.py           # ToolDefinition, OmniTool, ToolCall, BuiltinTool, omni_tool
+│   └── other.py           # Judge / Image / Audio / ... の応答型（仕様書 §4 をそのまま移す）
+├── capabilities.py        # 全 10 領域の Sync/Async 抽象基底（Chat 以外は形だけ）
+├── config.py              # 設定・認証の 4 段階解決 (ADR-04)
+├── compat.py              # OS差分吸収（仕様書 §9.3）＋ detect_local_capabilities
+├── _http/
+│   ├── __init__.py
+│   ├── transport.py       # SyncTransport / AsyncTransport（httpx 薄ラッパー）
+│   ├── retry.py           # RetryPolicy
+│   ├── sse.py             # SSE パーサー（行単位・sans-IO）
+│   └── ndjson.py          # NDJSON パーサー（sans-IO）
+├── _media.py              # MediaSource → bytes / base64 / stream の解決（メモリ上限つき）
+├── pricing.py             # PricingTable
+├── router.py              # FallbackChatAdapter, TelemetryTracker, OmniClient, 計測プロキシ
+├── tools.py               # ToolRunner（クライアント側ループ）, BuiltinTool 代行
+└── providers/
+    ├── __init__.py        # 遅延 import（__getattr__）
+    ├── _base.py           # BaseAdapter（provider_name, transport 管理, close/aclose）
+    ├── gemini/
+    │   ├── __init__.py    # GeminiChatAdapter
+    │   ├── codec.py       # 共通型 ⇔ Gemini JSON（sans-IO）
+    │   └── files.py       # Files API アップロード
+    └── ollama/
+        ├── __init__.py    # OllamaChatAdapter
+        └── codec.py       # 共通型 ⇔ Ollama JSON（sans-IO）
+tests/
+├── unit/                  # codec・パーサー・例外変換・ルーター（ネットワーク不要）
+├── contract/              # 全 Chat アダプター共通の契約テスト（respx で応答を再生）
+├── fixtures/              # 記録済み応答（gemini/*.json, *.sse / ollama/*.ndjson）
+└── live/                  # 実 API（環境変数があるときだけ実行）
+```
+
+- **src レイアウト**を採用（テストが、インストールされたパッケージを確実に import するように）。
+- `types` はモジュールからパッケージに変える。ただし `from omni_ai.types import ChatMessage` は仕様書どおりに動かす。
+- プロバイダごとにサブパッケージにして、`codec.py`（純関数）と transport を呼ぶ側を分ける（ADR-06）。
+
+### 3.1 依存関係
+
+| 区分 | パッケージ | 備考 |
+| :--- | :--- | :--- |
+| コア（仕様書 ADR-03 どおり 4 つ） | `pydantic>=2.7`, `httpx>=0.27`, `platformdirs>=4.2`, `anyio>=4.4` | `httpx[http2]` の `h2` も Pure Python。HTTP/2 は**既定では無効**（`http2=True` で有効化）|
+| dev | `pytest`, `pytest-asyncio`（または anyio プラグイン）, `respx`, `ruff`, `mypy`, `hypothesis` | `hypothesis` はストリームパーサーの性質テスト用に追加 |
+
+Gemini・Ollama のどちらも公式 SDK には依存しない（仕様書 ADR-02）。
+
+---
+
+## 4. レイヤー構造
+
+```text
+ 利用者コード
+     │  ai.chat.agenerate(...) / ai.tools.arun(...)
+ ┌───▼────────────────────────────────────────────┐
+ │ OmniClient（router.py）                         │
+ │   計測プロキシ: latency・コストを記録し on_response を呼ぶ │
+ ├────────────────────────────────────────────────┤
+ │ FallbackChatAdapter（任意）: 例外の種類でプロバイダを順に切り替え │
+ ├────────────────────────────────────────────────┤
+ │ ChatCapability 実装（GeminiChatAdapter 等）         │
+ │   ├ codec（sans-IO）: 共通型 ⇔ ワイヤ JSON、例外変換  │
+ │   └ transport: httpx ＋ RetryPolicy               │
+ └────────────────────────────────────────────────┘
+```
+
+- **依存の向き**: `providers → (types, exceptions, _http, compat, config)`。`router` は `capabilities` だけを知り、個別アダプターを import しない。
+- **計測は OmniClient 側で一元化する**。アダプターは `ResponseMeta` に `provider / model / usage / request_id` を詰めるだけで、時間計測・コスト計算・フックの呼び出しはしない。これで仕様書 v3.0 の `on_response` が呼ばれない問題（仕様書 §11 D-10）を解消する。
+
+---
+
+## 5. モジュール別設計
+
+### 5.1 `exceptions.py`
+
+仕様書 §3 の 5 クラスに、ネットワーク系・要求不正系・ストリーム系を足す。
+
+```text
+OmniError(message, provider, model=None, status_code=None, retryable=False, raw_error=None, request_id=None)
+├── AuthenticationError            401/403, キー不正           retryable=False
+├── PermissionDeniedError          403（権限・地域制限）       retryable=False  ※AuthenticationError のサブクラス
+├── InvalidRequestError            400（その他の要求不正）     retryable=False
+│   ├── ContextLengthExceededError 400（文脈長超過）           retryable=False
+│   └── UnsupportedFeatureError    SDK が事前に検出（例: 組み込みツール未対応・画像非対応モデル）
+├── NotFoundError                  404（モデル未存在など）     retryable=False
+├── QuotaExceededError             402（Gemini 前払い残高ゼロ等） retryable=False ※フォールバック対象
+├── RateLimitError                 429                         retryable=True, retry_after_seconds
+├── ProviderOverloadedError        500/502/503/504/529         retryable=True
+├── ProviderConnectionError        接続拒否・DNS 失敗など      retryable=True   ※Ollama 未起動の典型
+│   └── ProviderTimeoutError       タイムアウト                retryable=True
+├── StreamInterruptedError         ストリーム途中の切断        retryable=False（ADR-07）
+├── SchemaValidationError          構造化出力の検証失敗        retryable=False
+├── ToolLoopLimitError             ToolRunner が max_turns 到達（partial_result 付き）
+└── CapabilityNotConfiguredError   OmniClient の未設定 Capability へのアクセス
+```
+
+- `retryable` は「**同じ要求をそのまま送り直せば成功しうるか**」だけを表す。フォールバックするかどうかは `FallbackChatAdapter.fallback_on`（既定: `RateLimitError, ProviderOverloadedError, ProviderConnectionError, QuotaExceededError`）で別に決める。`ContextLengthExceededError` を `fallback_on` に足せば「文脈の長いプロバイダへ逃がす」こともできる。
+- 例外変換はアダプターの codec に置く純関数 `map_error(status, body, headers) -> OmniError` とし、記録済みの応答でテストする。
+- `raw_error` には httpx の例外か、`httpx.Response` から作った軽量な記録（ステータス・本文の先頭 2KB・ヘッダの一部）を入れる。**API キーを含むヘッダは記録しない**。
+
+### 5.2 `types/`（共通データモデル）
+
+仕様書 §4 からの変更点だけを記す。
+
+```python
+FinishReason = Literal["stop", "tool_calls", "length", "content_filter", "error", "unknown"]
+
+class Usage(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0          # 追加: Gemini thoughtsTokenCount 等
+    total_tokens: int = 0
+
+class ResponseMeta(BaseModel):
+    provider: str
+    model: str
+    latency_ms: float = 0.0
+    time_to_first_event_ms: float | None = None   # 追加: ストリーミング時
+    estimated_cost_usd: float | None = None       # 変更: 不明なら None (ADR-10)
+    request_id: str | None = None
+    usage: Usage = Field(default_factory=Usage)
+    attempts: int = 1                              # 追加: 再試行を含めた試行回数
+    fallback_from: list[str] = Field(default_factory=list)  # 追加: 失敗して飛ばしたプロバイダ
+
+class UrlRef(BaseModel):            # 追加: str の曖昧さを解消
+    url: str
+
+MediaSource = bytes | Path | BinaryIO | FileRef | UrlRef   # 変更: 素の str を除外
+
+class MediaPart(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)   # BinaryIO を許すため
+    type: Literal["image", "audio", "video", "document"]
+    source: MediaSource
+    mime_type: str
+
+class ToolCall(BaseModel):
+    id: str                          # プロバイダが id を返さない場合は SDK が採番 ("call_<uuid4 hex 12桁>")
+    name: str
+    arguments: dict[str, Any]
+    provider_state: dict[str, Any] = Field(default_factory=dict)   # ADR-11
+
+class ChatMessage(BaseModel):
+    role: Role
+    content: str | list[ContentPart]
+    tool_calls: list[ToolCall] | None = None
+    tool_call_id: str | None = None
+    name: str | None = None          # 追加: TOOL メッセージのツール名（Gemini/Ollama は名前で結果を返す）
+    provider_state: dict[str, Any] = Field(default_factory=dict)   # ADR-11
+
+class Citation(BaseModel):          # 追加: 組み込み Web 検索の出典
+    title: str | None = None
+    url: str
+    start_index: int | None = None
+    end_index: int | None = None
+
+class ChatResponse(BaseModel):
+    content: str | None = None
+    parsed: Any | None = None
+    reasoning: str | None = None     # 追加: 思考の要約（取得できるプロバイダのみ）
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)   # 追加
+    finish_reason: FinishReason = "stop"
+    meta: ResponseMeta
+
+    def to_message(self) -> ChatMessage: ...   # 追加: 履歴にそのまま積めるアシスタントメッセージを作る
+
+class StreamEvent(BaseModel):
+    type: Literal["text_delta", "reasoning_delta", "tool_call", "citation", "message_complete"]
+    delta_text: str = ""
+    tool_call: ToolCall | None = None          # "tool_call" は常に完成した ToolCall（アダプターがバッファする）
+    citation: Citation | None = None
+    finish_reason: FinishReason | None = None
+    response: ChatResponse | None = None       # message_complete のとき、全体を組み立てた ChatResponse
+    meta: ResponseMeta | None = None
+```
+
+- `StreamEvent.type` の `"tool_call_delta"` は `"tool_call"` に改める。v3.0 では「delta」と名乗りながら完成した `ToolCall` を運ぶ定義になっており、意味が矛盾していたため。引数 JSON の断片はアダプターの内部で組み立て、利用者には完成品だけを見せる。
+- `message_complete` で `response` を返すので、ストリームを最後まで読んだ利用者は、非ストリームと同じ `ChatResponse` を得られる。
+- 型注釈は Python 3.11 の組み込みジェネリクス（`list[...]`、`X | None`）に統一する。
+
+### 5.3 `types/tools.py` — `omni_tool` / `OmniTool` / `BuiltinTool`
+
+```python
+class OmniTool(ToolDefinition):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    handler: Callable[..., Any] = Field(exclude=True)
+    is_async: bool = False
+
+    def __call__(self, *args, **kwargs): return self.handler(*args, **kwargs)
+    async def ainvoke(self, arguments: dict[str, Any]) -> Any: ...   # sync なら anyio.to_thread で実行
+
+def omni_tool(func=None, *, name: str | None = None, description: str | None = None, strict: bool = True): ...
+```
+
+- `@omni_tool` と `@omni_tool(name=...)` の両方の書き方を受け付ける。
+- 引数モデルは `pydantic.create_model` で作り、**`model_json_schema()` の出力から `title` を取り除き、`$defs` を展開する**。Gemini の関数宣言が受け付けるスキーマの範囲が狭いため、ここで正規化する（§7.3）。
+- `self` / `cls` / `*args` / `**kwargs` を含む関数は、デコレート時に `TypeError` にする。
+- Docstring の Google 形式 `Args:` 節から、引数の説明をスキーマの `description` に写す（簡易パーサー。失敗しても説明が無いだけで済ませる）。
+- `BuiltinTool`（`WEB_SEARCH`, `CODE_EXECUTION`）は仕様書のとおり `str` 列挙型にする。
+- `ToolSpec = ToolDefinition | OmniTool | BuiltinTool` を、`tools` 引数の要素の型とする。
+
+### 5.4 `capabilities.py`
+
+```python
+class Capability(ABC):
+    provider_name: ClassVar[str]                 # 追加（v3.0 §8.4 が参照していたのに未定義だった）
+    def close(self) -> None: ...                 # 追加: 同期 transport を閉じる
+    async def aclose(self) -> None: ...          # 追加: 非同期 transport を閉じる
+    def __enter__/__exit__/__aenter__/__aexit__  # 追加
+
+class ChatCapability(Capability):
+    supported_builtins: ClassVar[frozenset[BuiltinTool]] = frozenset()   # ADR-09
+
+    def generate(self, messages, *, model=None, temperature=None, max_tokens=None,
+                 tools: Sequence[ToolSpec] | None = None,
+                 tool_choice: Literal["auto", "none", "required"] | str = "auto",   # 追加
+                 response_schema: type[BaseModel] | None = None,
+                 timeout: float | None = None,                                       # 追加
+                 **provider_options) -> ChatResponse
+    async def agenerate(...) -> ChatResponse
+    def stream(...) -> Iterator[StreamEvent]
+    def astream(...) -> AsyncIterator[StreamEvent]
+```
+
+- `model` 以降の引数は**キーワード専用**にする（`*,`）。位置引数で渡すとフォールバック先で意味がずれる事故を防ぐ。
+- `**kwargs` は `**provider_options` と改名する。アダプターは**知らないキーを黙って捨てない**: 自分のキーでなければ無視したうえで `logging` の debug に出す（縮退経路のログ）。プロバイダ固有の指定は、`gemini={...}`・`ollama={...}` のように名前空間を付けて渡す方式にする（フォールバック先のプロバイダに、他社向けの指定が混ざらないように）。
+- Chat 以外の 9 領域にも `Capability` 基底と `provider_name` を付ける。シグネチャはそれ以外、仕様書 §5 のまま。
+
+### 5.5 `config.py`（ADR-04 の具体化）
+
+解決順: ①引数 → ②`OMNI_<PROVIDER>_<KEY>` → ③各社の標準環境変数 → ④設定ファイル。
+
+| 設定 | ① 引数 | ② OMNI_* | ③ 各社標準 | ④ 設定ファイル |
+| :--- | :--- | :--- | :--- | :--- |
+| Gemini API キー | `api_key=` | `OMNI_GEMINI_API_KEY` | `GEMINI_API_KEY`, `GOOGLE_API_KEY`（この順） | `[gemini] api_key` |
+| Gemini base URL | `base_url=` | `OMNI_GEMINI_BASE_URL` | — | `[gemini] base_url` |
+| Ollama base URL | `base_url=` | `OMNI_OLLAMA_BASE_URL` | `OLLAMA_HOST` | `[ollama] base_url` → 最後に `compat.resolve_ollama_base_url()` |
+
+- 設定ファイルは `PlatformCompat.get_config_dir() / "config.toml"` に置き、標準ライブラリの `tomllib` で読む（依存を増やさない）。読むときに `encoding` 問題は起きない（`tomllib` はバイナリで読む）。
+- **`.env` は SDK からは読まない**。読むのはアプリ側の責任とする（ADR-04 の理由欄で `.env` に触れているが、自動読み込みは副作用が大きいため）。
+- 解決結果には「どの段で決まったか」を持たせ、`OmniClient.describe_config()` でキー本体を伏せて表示できるようにする（問い合わせ対応用）。
+
+### 5.6 `compat.py`
+
+仕様書 §9.3 の `PlatformCompat` をそのまま実装し、以下を足す。
+
+- `resolve_ollama_base_url()`: `OLLAMA_HOST` の値は `host:port` 形式と、スキームを含む形式の両方があり得るので、両方を正規化する。`0.0.0.0` は接続先としては使えないので `127.0.0.1` に置き換える。
+- `is_in_container()`: `/.dockerenv` に加えて、`/proc/1/cgroup` の確認も Linux に限って行う（`compat` の中だけで OS を分岐する）。
+- コンテナの中で `127.0.0.1:11434` への接続が拒否されたら、`host.docker.internal` を **1 回だけ**試す。この判断は `OllamaChatAdapter` の初回接続時に行い、結果はインスタンスに保持する。
+- `detect_local_capabilities()` は、今回は Ollama の `/api/tags` と `/api/show` の結果をまとめるところまでを作る（§7.4）。画像生成の判定は今回の範囲外。
+
+### 5.7 `_http/` — transport・再試行・ストリームパーサー
+
+```python
+@dataclass(frozen=True)
+class RetryPolicy:
+    max_attempts: int = 2               # 初回を含む
+    base_delay: float = 0.5
+    max_delay: float = 8.0
+    jitter: float = 0.25                # ±25%
+    respect_retry_after: bool = True    # RateLimitError.retry_after_seconds を優先（ただし max_delay を超えたら再試行しない）
+```
+
+- 再試行の対象は `retryable=True` の例外だけ。**ストリームは、最初のバイトを受け取るまで**しか再試行しない。
+- 待機は `time.sleep`（同期）と `anyio.sleep`（非同期）を使い分ける。どちらの経路も、`RetryPolicy.next_delay()` という同じ純関数で待ち時間を決める。
+- タイムアウトの既定値は `httpx.Timeout(connect=10, read=120, write=60, pool=10)`。Ollama は初回にモデルをロードするため、`read` の既定を 300 秒にする。
+- `SSEParser` / `NDJSONParser` は、バイト列を受け取ってイベントを返すだけの状態機械にする（I/O を持たない）。行が途中で分割されるケース、CRLF、マルチバイト文字の分断は `hypothesis` で性質テストを行う。
+- transport は、`User-Agent: omni-ai-sdk/<version> (<provider>)` を付ける。
+
+### 5.8 `_media.py` — MediaSource の解決
+
+| 入力 | 扱い |
+| :--- | :--- |
+| `bytes` | そのまま |
+| `Path` | サイズを先に `stat()` で確認し、インライン上限を超えていれば、Files API を持つプロバイダならアップロード経路へ回す。無ければ `UnsupportedFeatureError` |
+| `BinaryIO` | `seek`/`tell` が使えればサイズを測ってから扱う。使えなければチャンクで読み、上限を超えた時点で打ち切る |
+| `FileRef` | そのプロバイダの参照ならそのまま渡す。他社の参照なら `UnsupportedFeatureError` |
+| `UrlRef` | プロバイダが URL 入力を受け付けるならそのまま渡す。受け付けなければ、SDK は**勝手にダウンロードしない**で `UnsupportedFeatureError` にする（SSRF とメモリの両面のリスクを避けるため） |
+
+- base64 にするとメモリ上のサイズは約 1.33 倍になる。インライン上限は、プロバイダの上限ではなく、base64 にした後のサイズで判定する。
+
+### 5.9 `router.py`
+
+#### 計測プロキシ
+`OmniClient.chat` は、設定されたアダプターをそのまま返さず、`_InstrumentedChat(inner, tracker, pricing, on_response)` で包んで返す。
+
+1. `time.perf_counter()` で計測を始める
+2. 内側のアダプターを呼ぶ
+3. `meta.latency_ms` を詰め、`pricing.estimate(meta)` で `estimated_cost_usd` を計算する
+4. `tracker.record(meta)` を呼ぶ → `on_response(meta)` を呼ぶ（フックが例外を出しても**握りつぶして** `logging.warning` に出す。本処理を失敗させない）
+5. ストリームの場合は、最初のイベントで `time_to_first_event_ms` を記録し、`message_complete` のときに 3〜4 を行う
+
+`TelemetryTracker` は、非同期処理が並列に記録しても壊れないように、`threading.Lock` で守る。集計は `total_cost_usd`（`None` は合計に含めず、`unpriced_calls` として件数を別に数える）、`total_latency_ms`、`by_provider()` を持つ。
+
+#### FallbackChatAdapter
+```python
+class FallbackChatAdapter(ChatCapability):
+    provider_name = "fallback"
+    def __init__(self, providers: Sequence[ChatCapability], *,
+                 fallback_on: tuple[type[OmniError], ...] = (RateLimitError, ProviderOverloadedError, ProviderConnectionError, QuotaExceededError),
+                 model_map: Mapping[str, Mapping[str, str]] | None = None): ...
+```
+- `generate` / `agenerate` / `stream` / `astream` の **4 つすべて**を実装する（v3.0 は `agenerate` だけだった）。
+- **`model` の扱い**: 呼び出し側が渡した `model` が `"gemini-2.5-flash"` のような特定プロバイダの ID のとき、そのまま Ollama に渡すと必ず失敗する。そこで、`model` が渡されたら `model_map[provider_name][model]` で置き換え、対応が無ければ各アダプターの `default_model` を使う。
+- 組み込みツールを含む要求で、そのツールを持たないアダプターは**飛ばす**（`UnsupportedFeatureError` を `fallback_from` に記録する）。
+- 全滅したときは、最後の例外を送出し、それまでの例外を `__notes__`（`add_note`）に要約して付ける。
+- ストリームは ADR-07 に従う。
+
+#### OmniClient
+- コンストラクタは仕様書のとおり。加えて `pricing: PricingTable | None` と `retry: RetryPolicy | None` を受け取る。
+- `__aexit__` / `aclose()` で、設定済みの全 Capability の `aclose()` を呼ぶ（v3.0 は何もしない `pass` だった）。同期版の `close()`、`__enter__` / `__exit__` も用意する。
+- 未設定の Capability にアクセスしたときの例外は、仕様書の `NotImplementedError` から **`CapabilityNotConfiguredError(OmniError)`** に変える（`NotImplementedError` は「抽象メソッドの未実装」を表す慣用があり、意味が紛らわしいため）。
+
+### 5.10 `tools.py` — ToolRunner（クライアント側のツールループ）
+
+仕様書 §8.4 の `HybridToolManager.execute_agent_loop` を置き換える。
+
+```python
+class ToolRunner:
+    def __init__(self, chat: ChatCapability, *, search: SearchCapability | None = None,
+                 sandbox: SandboxCapability | None = None, max_turns: int = 8,
+                 parallel_tool_calls: bool = True,
+                 on_tool_error: Literal["return_to_model", "raise"] = "return_to_model"): ...
+    def run(self, messages, tools: Sequence[ToolSpec], **opts) -> ToolRunResult
+    async def arun(self, messages, tools, **opts) -> ToolRunResult
+
+class ToolRunResult(BaseModel):
+    response: ChatResponse          # 最後の応答
+    messages: list[ChatMessage]     # 追加されたものを含む全履歴
+    turns: int
+    metas: list[ResponseMeta]       # 各ターンの meta（合計コストは OmniClient 側でも集計される）
+```
+
+ループの手順（v3.0 で不足していた部分を **太字** で示す）:
+
+1. `BuiltinTool` を解決する。アダプターの `supported_builtins` に含まれていればそのまま渡す。含まれていなければ代行用の `OmniTool` に置き換える（`WEB_SEARCH` → `search` Capability、`CODE_EXECUTION` → `sandbox` Capability）。代行に必要な Capability が無ければ `UnsupportedFeatureError`。
+2. `agenerate` を呼ぶ。
+3. `tool_calls` が空なら終了する。
+4. **アシスタントの応答 (`response.to_message()`) を、`tool_calls` と `provider_state` も含めて履歴に足す。**
+5. 各 `ToolCall` に対応する handler を探す。**見つからない名前は「unknown tool」という結果をモデルに返す**（黙って無視しない）。
+6. **handler を `ainvoke` で実行する**（同期関数はスレッドで実行する。`parallel_tool_calls=True` なら `anyio` のタスクグループで並行して実行する）。
+7. **引数が検証に失敗したときや、handler が例外を出したときは、`on_tool_error` に従う。**
+8. `Role.TOOL`・`tool_call_id`・`name` を付けて結果を履歴に足し、2. に戻る。
+9. **`max_turns` に達したら、`ToolLoopLimitError(OmniError)` を送出する**（途中の `ToolRunResult` は例外の属性に持たせる）。
+
+OmniClient からは `ai.tools.arun(...)` として使う。`ai.tools` は、設定済みの `chat` / `search` / `sandbox` から `ToolRunner` を組み立てる。
+
+### 5.11 `pricing.py`
+
+```python
+class ModelPrice(BaseModel):
+    input_per_mtok: float
+    output_per_mtok: float
+    cached_input_per_mtok: float | None = None
+    source: str          # 単価の出典 URL
+    as_of: date          # 取得日
+
+class PricingTable:
+    def __init__(self, prices: Mapping[tuple[str, str], ModelPrice] | None = None, *, is_free=lambda provider, model: provider == "ollama" and not model.endswith((":cloud", "-cloud"))): ...
+    def estimate(self, meta: ResponseMeta) -> float | None: ...
+```
+
+- 単価表を同梱するかどうかは、**今回は同梱しない**（空の表 ＋ Ollama は 0 円）。同梱すると古くなった単価が黙って使われ続けるため。必要になったら、`as_of` 付きで追加する。
+
+---
+
+## 6. Chat アダプター共通の設計
+
+### 6.1 アダプターの骨格
+
+```python
+class GeminiChatAdapter(BaseAdapter, ChatCapability):
+    provider_name = "gemini"
+    supported_builtins = frozenset({BuiltinTool.WEB_SEARCH, BuiltinTool.CODE_EXECUTION})
+
+    def __init__(self, *, api_key=None, base_url=None, default_model="<§7.1>",
+                 retry: RetryPolicy | None = None, timeout=None,
+                 http_client: httpx.Client | None = None,
+                 async_http_client: httpx.AsyncClient | None = None): ...
+```
+
+- `http_client` / `async_http_client` を外から注入できるようにする（テストと、プロキシ設定などの利用者独自の設定のため）。注入されたクライアントは、アダプター側では**閉じない**。
+- transport は、最初に使ったときに作る（同期だけ使う利用者のために `AsyncClient` を作らない）。
+
+### 6.2 1 回の呼び出しの流れ（両アダプター共通）
+
+```text
+messages, opts
+  → codec.build_request(messages, opts)          … 純関数：JSON と URL を作る、検証違反は UnsupportedFeatureError
+  → transport.post / stream（RetryPolicy つき）
+  → 非 2xx: codec.map_error(status, body, headers) → OmniError
+  → codec.parse_response(json) / codec.StreamDecoder.feed(chunk)
+  → ChatResponse / StreamEvent
+  → response_schema があれば pydantic で検証 → parsed（失敗時 SchemaValidationError）
+```
+
+### 6.3 契約テスト（両アダプターに同じテストを当てる）
+
+`tests/contract/test_chat_contract.py` を、`[gemini, ollama]` でパラメータ化して実行する。記録済みの応答を respx で再生し、次を確かめる。
+
+| # | 契約 |
+| :--- | :--- |
+| C-01 | テキストだけの応答で `content` と `finish_reason="stop"` と `usage` が埋まる |
+| C-02 | ツール呼び出しの応答で `tool_calls` に id / name / arguments(dict) が入り、`finish_reason="tool_calls"` |
+| C-03 | `to_message()` → ツール結果 → 再送信で、ワイヤ上の履歴がプロバイダ仕様どおりになる（記録したリクエストと突き合わせる） |
+| C-04 | ストリームをすべて連結した結果が、非ストリームの `ChatResponse` と等しくなる（同じ録画から作る） |
+| C-05 | `message_complete` はちょうど 1 回、最後に来る |
+| C-06 | 429 / 503 / 400（文脈長）/ 401 / 404 / 接続拒否 が、それぞれ決められた例外に変換される |
+| C-07 | 再試行: 429 のあと 200 なら、`attempts=2` で成功する |
+| C-08 | `response_schema` を指定すると `parsed` が型どおりに得られ、壊れた JSON なら `SchemaValidationError` になる |
+| C-09 | `close()` / `aclose()` のあとに呼ぶと、明確な例外になる |
+
+---
+
+## 7. GeminiChatAdapter
+
+### 7.1 方針
+
+| 項目 | 決定 | 根拠・代償 |
+| :--- | :--- | :--- |
+| API | **`generateContent` / `streamGenerateContent`（v1beta）** を使う | [確認済] 公式索引は Interactions API を既定とし、generateContent を「legacy」と呼ぶ。ただし移行ガイドは generateContent を「fully supported」と書いており、サンセット日は見つからなかった [未検証]。関数呼び出し・組み込みツール・ストリームの資料がそろっているのは generateContent の側なので、こちらで縦切りを通す。**代償**: 将来、移行が要る。codec を差し替えられる構造（§6.2）にして、`InteractionsCodec` を後から足せるようにしておく |
+| 版 | `v1beta`（`base_url` で変更可） | [確認済] Context Caching と Files 関連が v1beta |
+| 認証 | `x-goog-api-key` ヘッダ。`?key=` は使わない | [確認済] ヘッダが正式。キーが URL に入るとログに残りやすいため |
+| 既定モデル | `gemini-3.8-flash` | [確認済] モデル一覧に掲載されており、公式コード例の既定。このキーの `models.list` にもあった（2026-11-07 実測） |
+| 注意 | `gemini-2.5-flash` / `-pro` は deprecated。2026-12-01 から別モデルへ自動ルーティングされる | [確認済] 仕様書 v3.0 の例のモデル名は古い |
+
+### 7.2 要求の写像（共通型 → Gemini）
+
+| 共通型 | Gemini | 備考 |
+| :--- | :--- | :--- |
+| `Role.SYSTEM` | `systemInstruction.parts[].text` | [確認済] text のみ。メディアを含めば `UnsupportedFeatureError`。SYSTEM が複数あれば改行で連結する |
+| `Role.USER` | `contents[{role:"user"}]` | |
+| `Role.ASSISTANT` | `contents[{role:"model"}]` | `provider_state["gemini"]["parts"]` があれば、**その parts をそのまま**送る（§7.4） |
+| `Role.TOOL`（連続する分をまとめる） | **1 つの** `{role:"user", parts:[{functionResponse:{name, id, response}}...]}` | [確認済] 並列呼び出しの結果は、FC1, FC2, FR1, FR2 の順に並べる必要がある（交互に並べると 400）。`response` は object が必須なので、`str` の結果は `{"result": ...}`、例外は `{"error": ...}` で包む |
+| 最後のメッセージが ASSISTANT | 送信前に `UnsupportedFeatureError` | [確認済] Gemini 3.6 以降は、最後のターンが model だと 400（prefill 禁止） |
+| `TextPart` | `{text}` | |
+| `MediaPart` + bytes / Path / BinaryIO | インライン上限以下なら `inlineData{mimeType, data(base64)}`、超えたら Files API でアップロードして `fileData` | [確認済] インラインは要求全体で 100MB（PDF は 50MB）まで。SDK のインライン上限の既定は **20MB**（メモリを守るための保守的な値。変更可） |
+| `MediaPart` + `FileRef(provider="gemini")` | `fileData{fileUri, mimeType}` | |
+| `MediaPart` + `UrlRef` | `fileData{fileUri: url, mimeType}` | [確認済] 外部 URL は 1 ファイル 15MB まで |
+| `temperature` | `generationConfig.temperature` | [確認済] Gemini 3.6 Flash 以降は**黙って無視される**（将来は 400 になる予告）。SDK は値を送り、debug ログに「無視される可能性あり」と出す |
+| `max_tokens` | `generationConfig.maxOutputTokens` | |
+| `response_schema` | `responseMimeType:"application/json"` ＋ `responseJsonSchema` | [確認済] 現行の参照ページに `responseSchema` は無い。ガイドの例は `responseFormat.text` を使っているが、`responseJsonSchema` が非推奨になったという記述は見つからなかった [未検証]。スキーマは §5.3 と同じ正規化を通す |
+| `tools`（関数） | `tools:[{functionDeclarations:[{name, description, parametersJsonSchema}]}]` | [確認済] `parameters`（OpenAPI サブセット）ではなく `parametersJsonSchema` を使う |
+| `BuiltinTool.WEB_SEARCH` | `{"google_search": {}}` | [確認済] v3.0 §8.4 の `{"type": "google_search"}` は**誤り** |
+| `BuiltinTool.CODE_EXECUTION` | `{"code_execution": {}}` | [確認済] |
+| 組み込みツールと関数の併用 | `toolConfig.includeServerSideToolInvocations: true` を付け、mode は `VALIDATED` | [確認済] Gemini 3 / 4 の **Preview 機能**。2.5 系では使えるか不明 [未検証] |
+| `tool_choice` | `auto`→`AUTO`、`none`→`NONE`、`required`→`ANY`、ツール名→`ANY` ＋ `allowedFunctionNames` | [確認済] |
+| 思考の指定 | `gemini={"thinking_level": "low", "include_thoughts": True}` → `thinkingConfig` | [確認済] Gemini 3 以降は `thinkingLevel`、2.5 は `thinkingBudget`。3.8 Flash は `minimal` を指定するとエラー |
+
+### 7.3 応答の写像（Gemini → 共通型）
+
+| Gemini | 共通型 | 備考 |
+| :--- | :--- | :--- |
+| `candidates[0].content.parts[].text`（`thought` ではないもの） | `content`（連結） | parts を**位置に依存せず**すべて走査する（[確認済] 併用時、functionCall が末尾に来るとは限らない） |
+| `parts[].text` で `thought: true` | `reasoning` | `include_thoughts` を指定したときだけ現れる |
+| `parts[].functionCall{name, id, args}` | `ToolCall(id, name, arguments)` | [確認済] Gemini 3 は必ず一意な id を返す。id が無ければ SDK が採番する |
+| `content`（parts 全体） | `ChatResponse.to_message().provider_state["gemini"]["parts"]` | thought signature などを**欠かさず保持する**ため（§7.4） |
+| `executableCode` / `codeExecutionResult` | `provider_state` にだけ保持する | 共通型にサーバー側ツールの結果を出す項目は、今回は作らない（§11 残留リスク R-05） |
+| `groundingMetadata.groundingSupports[].segment` ＋ `groundingChunks[].web` | `citations[]` | [確認済] フィールド名 |
+| `finishReason` | 下表 | |
+| `usageMetadata` | `Usage` | `promptTokenCount`→prompt（キャッシュ分を含む）、`candidatesTokenCount`→completion、`cachedContentTokenCount`→cached、`thoughtsTokenCount`→reasoning、`totalTokenCount`→total [確認済] |
+| `responseId` | `meta.request_id` | [確認済] |
+| `modelVersion` | `meta.model` | 要求したモデル名ではなく、**実際に応答したモデル**を記録する（2026-12-01 の自動ルーティングを検出できるように） |
+| `promptFeedback.blockReason`（candidates が空） | `content=None`, `finish_reason="content_filter"` | [確認済] |
+
+`finishReason` の写像（[確認済] 列挙値）:
+
+| Gemini | 共通 |
+| :--- | :--- |
+| `STOP` | `stop`（functionCall を含んでいれば `tool_calls`） |
+| `MAX_TOKENS` | `length` |
+| `SAFETY`, `RECITATION`, `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII`, `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, `IMAGE_RECITATION` | `content_filter` |
+| `MALFORMED_FUNCTION_CALL`, `UNEXPECTED_TOOL_CALL`, `TOO_MANY_TOOL_CALLS`, `MISSING_THOUGHT_SIGNATURE`, `MALFORMED_RESPONSE` | `error` |
+| `CONTINUATION` | `length`（`continuationToken` は `provider_state` に保持する。継続取得は今回の範囲外） |
+| その他（`LANGUAGE`, `OTHER`, `ESCALATION`, …、未知の値） | `unknown`（元の値を debug ログに出す） |
+
+### 7.4 thought signature の扱い（最重要）
+
+[確認済] Gemini 3 / 4 の関数呼び出しでは、モデルが返した `thoughtSignature` を次のターンで**元の part にそのまま付けて**返さないと、400（`missing a thought_signature`）になる。並列呼び出しでは、最初の functionCall にだけ付く。
+
+- アダプターは、モデル応答の `content.parts` を**加工せずに**、`provider_state["gemini"]["parts"]` に丸ごと保存する。
+- 再送信のときに `provider_state["gemini"]` があれば、`ChatMessage.content` や `tool_calls` から parts を組み立て直さずに、保存した parts をそのまま使う。
+- **他社のアシスタントメッセージ**（例: Ollama にフォールバックしたあとの履歴）を Gemini に送るときは、functionCall の part に、公式に用意されているダミー署名 `"skip_thought_signature_validator"` を付ける [確認済]。
+- 利用者がアシスタントメッセージを自分で組み立てた場合（`provider_state` が無い場合）も、同じダミー署名を付ける。
+
+### 7.5 ストリーミング
+
+- `POST .../{model}:streamGenerateContent?alt=sse`。各イベントは `GenerateContentResponse` と同じ形 [確認済]。
+- `data:` 行ごとに JSON として読み、text の差分 → `text_delta`、thought → `reasoning_delta`、functionCall → `tool_call`（Gemini は functionCall を完成した形で返すので、そのまま流す）。
+- `finishReason` が現れたチャンクを最後のチャンクとみなす。`usageMetadata` は、**最後に受け取った値**を採用する（[未実測] 途中のチャンクにも usage が載る例がある）。
+- 署名が空の text part に付いて届くことがある [確認済] ので、ストリームでも parts を蓄積して `provider_state` を組み立てる。
+- SSE の生のフレーム形式と、ストリーム途中のエラーの形は **[未実測]**。`data:` 行の JSON に `error` キーがあれば、§7.6 の写像で例外にする（最初のイベントの前なら通常の例外、後なら `StreamInterruptedError`）。
+
+### 7.6 エラーの写像
+
+[確認済] 本文の形は `{"error": {"code", "message", "status", "details": [...]}}`。
+
+| HTTP | `status` / 条件 | 例外 |
+| :--- | :--- | :--- |
+| 400 | `details[].reason == "API_KEY_INVALID"` | `AuthenticationError`（[確認済] キー不正は 401 ではなく 400） |
+| 400 | message が文脈長の超過を示す | `ContextLengthExceededError`（**[未検証]** 文脈長超過のステータスと文言は資料に無い。判定は message の部分一致に頼るので、実測して固める） |
+| 400 | `FAILED_PRECONDITION`（無料枠の地域制限） | `PermissionDeniedError` |
+| 400 | その他 | `InvalidRequestError` |
+| 402 | `RESOURCE_EXHAUSTED`（前払い残高ゼロ） | `QuotaExceededError`（再試行しない・フォールバックする） |
+| 403 | `PERMISSION_DENIED` | `PermissionDeniedError` |
+| 404 | `NOT_FOUND` | `NotFoundError` |
+| 429 | `RESOURCE_EXHAUSTED` | `RateLimitError`。`details` に `RetryInfo.retryDelay` があれば `retry_after_seconds` に入れ、無ければ `Retry-After` ヘッダを見る（**[未検証]** どちらも資料に記載が無い） |
+| 499 | `CANCELLED` | `OmniError`（再試行しない） |
+| 500 / 503 / 504 | `INTERNAL` / `UNAVAILABLE` / `DEADLINE_EXCEEDED` | `ProviderOverloadedError`。ただし 500 の message が「input context is too long」なら `ContextLengthExceededError` [確認済: 資料の例文] |
+
+> ⚠ 402 と 429 はどちらも `RESOURCE_EXHAUSTED` になる [確認済]。そのため、**HTTP ステータスで判定し、`status` 文字列では判定しない**。
+
+### 7.7 Files API（大きなメディア）
+
+[確認済] resumable 方式で、`POST /upload/v1beta/files`（start）→ 応答ヘッダの `x-goog-upload-url` に本体を送る（upload, finalize）→ `file.state` が `ACTIVE` になるまで `GET /v1beta/files/{id}` で確認する。上限は 1 ファイル 2GB、保持は 48 時間。
+
+- 本体は `httpx` に**ファイルオブジェクトのまま渡して**ストリーム送信する（メモリに全部読み込まない）。
+- `ACTIVE` になるまでの確認は、間隔を少しずつ延ばしながら行い、上限 120 秒（変更可）。`FAILED` なら `InvalidRequestError`。
+- アップロード結果は `FileRef(provider="gemini", file_id, uri, mime_type)` として返し、`GeminiChatAdapter.upload_file()` で、利用者が自分で事前アップロードすることもできるようにする。
+
+---
+
+## 8. OllamaChatAdapter
+
+### 8.1 方針
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| API | ネイティブの `POST /api/chat` を使う（OpenAI 互換の `/v1` は使わない） | [確認済] `/v1` では `num_ctx` を指定できず、`tool_choice` も非対応。ネイティブ API なら `think`・`keep_alive`・`format`（スキーマ）が使える |
+| 接続先 | §5.5 の解決順 → `compat.resolve_ollama_base_url()` | [確認済] `OLLAMA_HOST` はスキームを省略でき（既定 http）、ポートも省略できる（既定 11434）。`0.0.0.0` は `127.0.0.1` に読み替える |
+| 既定モデル | **既定値を持たない**（`default_model` を必須にする） | 利用者の手元にあるモデルが分からないため。`/api/tags` の結果から黙って選ぶことはしない |
+| 単価 | ローカルモデルは 0.0。**名前が `:cloud` / `-cloud` で終わるモデルは `None`（不明）** | Ollama 経由のクラウドモデル（2026-11-07 時点で、師匠の Mac には `gpt-oss:120b-cloud` などがある [実測]）は無料ではないため。ADR-10 の「Ollama は常に 0」を修正したもの |
+
+### 8.2 事前の能力確認（`/api/show`）
+
+[確認済] `POST /api/show` の `capabilities` は、`completion` / `tools` / `vision` / `thinking` / `audio` などを返す。
+
+- アダプターは、モデルごとに最初の 1 回だけ `/api/show` を呼び、結果をキャッシュする（プロセス内のみ）。
+- `tools` を渡したのに `"tools"` が無ければ、送信前に `UnsupportedFeatureError` にする。画像を渡して `"vision"` が無い場合や、思考を指定して `"thinking"` が無い場合も同じ。
+- [実測 2026-11-07・Mac・Ollama 0.17.7] `gemma4:e4b-mlx` の capabilities は `['completion', 'vision', 'audio']` で `tools` が無かった。`gpt-oss:120b-cloud` は `['completion', 'tools', 'thinking']`。モデルによって差が大きく、この事前確認は必要。
+
+### 8.3 要求の写像
+
+| 共通型 | Ollama | 備考 |
+| :--- | :--- | :--- |
+| `Role.*` | `role: system / user / assistant / tool` | [確認済] |
+| `TextPart`（複数） | `content`（改行で連結） | `content` は文字列だけ |
+| `MediaPart(type="image")` | `images: [base64...]` | [確認済] base64 のみ。`UrlRef` は `UnsupportedFeatureError` |
+| `MediaPart(type="audio" / "video" / "document")` | `UnsupportedFeatureError` | ネイティブ API に、音声や文書を入力するフィールドは確認できなかった（capabilities に `audio` があるモデルでも同じ扱い） |
+| アシスタントの `tool_calls` | `tool_calls: [{type:"function", function:{index, name, arguments(object)}}]`。Ollama が採番した id があれば `id` も付ける | [確認済] arguments は文字列ではなく **object** |
+| `Role.TOOL` | `{role:"tool", tool_name, content}`。id が Ollama 由来なら `tool_call_id` も付ける | [確認済] 資料に載っているのは `tool_name` だけ。`tool_call_id` はソースにあるが、資料には無い |
+| `tools` | `[{type:"function", function:{name, description, parameters}}]` | [確認済] |
+| `tool_choice` | `auto` → そのまま、`none` → tools を送らない、`required` / ツール名 → `UnsupportedFeatureError` | [確認済] ネイティブ API に tool_choice は無い |
+| `BuiltinTool.*` | `supported_builtins` は空。`agenerate` に直接渡すと `UnsupportedFeatureError` | [確認済] ローカルの `/api/chat` には、サーバー側で実行するツールが無い。代行は `ToolRunner`（§5.10） |
+| `response_schema` | `format: <JSON Schema>` | [確認済] |
+| `temperature` / `max_tokens` | `options.temperature` / `options.num_predict` | [確認済] |
+| 固有の指定 | `ollama={"num_ctx", "keep_alive", "think", "options": {...}}` | [確認済] `think` は bool か、`/api/show` の `thinking.values` にある文字列 |
+
+### 8.4 応答とストリーミング
+
+- 非ストリームの場合: `message.content` → `content`、`message.thinking` → `reasoning`、`message.tool_calls[]` → `ToolCall`（id が無ければ SDK が採番する）[確認済]。
+- ストリームの場合: **NDJSON** [確認済]。1 行ずつ JSON として読む。
+  - `message.thinking` → `reasoning_delta`、`message.content` → `text_delta`。
+  - `message.tool_calls` は、資料の例では完成した形で 1 チャンクに収まって届く → そのまま `tool_call` イベントにする。ただし「断片にならない」とは資料に明記されていないので、**同じ index のものが続いたら引数を結合する**防御を入れる。
+  - `done: true` の行で `message_complete` を出す。
+- `done_reason`: `stop` → `stop`（tool_calls があれば `tool_calls`）、`length` → `length`、それ以外（`load` / `unload` / 空文字）→ `unknown`。
+- usage: `prompt_eval_count` → prompt、`eval_count` → completion、`prompt_eval_cached_count` があれば cached。
+- `request_id` は無い（`None`）。
+
+### 8.5 エラーの写像
+
+| 状況 | 例外 |
+| :--- | :--- |
+| 接続拒否（Ollama が起動していない） | `ProviderConnectionError`。コンテナの中なら、`host.docker.internal` を 1 回だけ試す（§5.6） |
+| 400 で、message に `does not support`（tools / thinking など） | `UnsupportedFeatureError` |
+| 400 その他 | `InvalidRequestError` |
+| 404（`model '...' not found`） | `NotFoundError` [実測: 本文 `{"error":"model 'no-such-model:1b' not found"}`, HTTP 404] |
+| 429 | `RateLimitError` |
+| 500 / 502 / 503 | `ProviderOverloadedError` |
+| **ストリーム途中の `{"error": ...}` 行** | 最初のイベントの前なら上の写像、後なら `StreamInterruptedError` [確認済: HTTP は 200 のまま、行の中で error が届く] |
+
+[実測 2026-11-07・Mac・Ollama 0.17.7] 手元の `gemma4:*-mlx` 系はどれも `{"error":"mlx runner failed: Error: unsupported architecture: ..."}` を **HTTP 500** で返した。ストリーム要求でも、200 ではなく最初から 500 で返った。これは一時的な障害ではなく、**何度送り直しても失敗する**。現在の写像（500 → `ProviderOverloadedError` → 再試行あり）では、無駄な再試行が 1 回発生する。message の `runner failed` を見て**再試行しない**扱い（`retryable=False` の `ProviderOverloadedError`、つまりフォールバックはするが再試行はしない）にする。
+
+### 8.6 文脈長（重要な残留リスク）
+
+[確認済: ソースのみ] `/api/chat` は、既定で文脈長 `num_ctx` を超えた古い履歴を**黙って切り捨てる**（`truncate` と `shift` の既定値が true）。エラーにはならず、切り捨てたことを知らせるフィールドも無い。既定の `num_ctx` は VRAM の量によって 4k / 32k / 256k と変わる。
+
+- SDK は `ContextLengthExceededError` を**出せない**。代わりに、`prompt_eval_count` が `num_ctx`（指定されている場合）の 95% 以上なら `logging.warning` で「切り捨てられた可能性」を知らせる（縮退経路のログ）。
+- 利用者が確実に気付けるように、`ollama={"num_ctx": ...}` の明示指定を README で推奨する。
+- `truncate: false` を渡すとどうなるかは **[未検証]**（ソースにあって資料に無い）。今回は実装しない。
+
+---
+
+## 9. テスト方針
+
+| 層 | 内容 | 実行条件 |
+| :--- | :--- | :--- |
+| unit | codec の純関数（写像表の 1 行ごとに 1 ケース）、例外の写像、SSE / NDJSON パーサー（`hypothesis` で任意の位置で分割しても結果が同じになること）、`RetryPolicy.next_delay`、`omni_tool` のスキーマ正規化、`ToolRunner`（偽の ChatCapability を使う） | 常に |
+| contract | §6.3 の C-01〜09 を両アダプターに当てる（respx ＋ 記録した応答） | 常に |
+| router | フォールバックの全分岐（例外の種類、組み込みツールでの飛ばし、ストリームの ADR-07、`model_map`）、計測プロキシ（フックの例外を握りつぶすこと、`None` コストの集計） | 常に |
+| compat | `OLLAMA_HOST` の正規化表、パスの NFC 化、`safe_temp_file` | 常に（3 OS の CI で） |
+| live | 実 API。`OMNI_LIVE_GEMINI=1` / `OMNI_LIVE_OLLAMA=<model>` のときだけ実行する。**記録した応答（fixtures）を更新する役目も持つ**（`--record`。記録時にキーと関係するヘッダは取り除く） | 手動 / 夜間 |
+
+- CI: GitHub Actions で 3 OS × Python 3.11 / 3.12 / 3.13（ADR-05）。live テストは CI では実行しない。
+- 型: `mypy --strict`（`src/` のみ）。lint: `ruff`。
+- **fixtures の出所を記録する**: 各記録ファイルの横に `*.meta.json`（取得日・モデル名・SDK のバージョン・取得した機械）を置く。手で作った応答と、実際の API から記録した応答を区別するため。
+
+---
+
+## 10. 実装順序（マイルストーン）
+
+各マイルストーンの終わりに、単体・契約テストがすべて通ることを条件にする。
+
+| # | 内容 | 終了条件 |
+| :--- | :--- | :--- |
+| M0 | リポジトリの雛形（`pyproject.toml`、src レイアウト、ruff / mypy / pytest、3 OS の CI） | 空のテストが 3 OS で通る |
+| M1 | `exceptions` / `types` / `capabilities` / `config` / `compat` | 型・設定解決・compat の単体テスト |
+| M2 | `_http`（transport、`RetryPolicy`、SSE / NDJSON パーサー）、`_media` | パーサーの性質テスト、再試行のテスト |
+| M3 | `OllamaChatAdapter`（非ストリーム → ストリーム → ツール → 能力確認） | 契約テスト C-01〜09（Ollama） |
+| M4 | `GeminiChatAdapter`（非ストリーム → ストリーム → ツール＋thought signature → 組み込みツール → Files API） | 契約テスト C-01〜09（Gemini） |
+| M5 | `router`（計測プロキシ、`FallbackChatAdapter`、`OmniClient`）、`pricing` | ルーターのテスト |
+| M6 | `tools`（`omni_tool` / `ToolRunner` / 組み込みツールの代行。代行用の `SearchCapability` はテスト用の偽物で可） | Ollama で `WEB_SEARCH` を代行するループのテスト |
+| M7 | live テストで fixtures を取り直し、§12 の [未検証] / [未実測] を潰す | 未検証の一覧が更新されている |
+
+Ollama を先にするのは、ローカルで無料で試せることと、ワイヤ形式（NDJSON、完成した tool_calls）が単純で、共通の骨格を固めやすいためである。
+
+---
+
+## 11. 残留リスク（未解決の点と、その扱い）
+
+| # | リスク | いまの扱い | 解除の条件 |
+| :--- | :--- | :--- | :--- |
+| R-01 | Gemini の `generateContent` が legacy 扱い | codec を差し替えられる構造にしておく | 公式がサンセット日を出したら、Interactions の codec を追加する |
+| R-02 | Gemini の文脈長超過・RetryInfo・SSE 途中のエラーの形が未確認 | message の部分一致と、ヘッダの両方を見る防御的な実装 | M7 の live テストで実測する |
+| R-03 | Ollama は文脈長の超過を黙って切り捨てる | warning ログ ＋ `num_ctx` の明示を推奨 | Ollama が切り捨ての通知を返すようになったら、例外に変える |
+| R-04 | Chat 以外の 9 領域を検証していないので、抽象（`Capability` 基底・名前空間付き options）がそれらに合わない可能性 | 共通規約は最小限にとどめる | 2 領域目（候補: Search ＝ ToolRunner の代行先）を実装するときに見直す |
+| R-05 | サーバー側ツールの実行結果（コード実行の出力・検索クエリ）を、共通型として出す項目が無い | `provider_state` にだけ保持する | 利用者から要望が出たら、`server_tool_results` を追加する |
+| R-06 | Gemini の組み込みツールと関数の併用は Preview 機能 | 併用したときだけフラグを付ける | GA になったら注記を外す |
+| R-07 | 師匠の Mac にある Ollama のローカルモデルでは、ツール呼び出しを実測できない（§8.5） | Ollama の tools の経路は、資料と記録した応答だけで検証する | **決定（2026-11-07）**: `gemma4:31b-cloud` を使う（Ollama 経由のクラウドモデル。capabilities は completion / thinking / tools / vision と実測済み）。ローカル実行の検証ではない点は残る |
+| R-08 | このセッションの実行環境からは、Gemini の `generateContent` を実測できなかった（`models.list`・`countTokens` は成功したが、`generateContent` は空本文の 404 か、無応答のタイムアウトになった。2026-11-07・Mac） | 資料で確認した事実だけで設計し、[未実測] と明記した | **決定（2026-11-07）**: いったん保留し、実装を先に進める。M7 までに解決する。原因は実行環境のネットワーク制限と推測しているが、**未確定** |
+
+---
+
+## 12. 確認の記録
+
+### 12.1 一次資料（2026-11-07 取得）
+
+Gemini（`ai.google.dev` は `aistudio.google.com` へ移転済み）:
+- https://aistudio.google.com/llms.txt
+- https://aistudio.google.com/api-reference/generate-content/generate-content.md
+- https://aistudio.google.com/api-reference/api-versions.md
+- https://aistudio.google.com/docs/function-calling.md?generate-content=true
+- https://aistudio.google.com/docs/thought-signatures.md?generate-content=true
+- https://aistudio.google.com/docs/tool-combination.md?generate-content=true
+- https://aistudio.google.com/docs/api-errors.md?generate-content=true
+- https://aistudio.google.com/docs/files.md?generate-content=true
+- https://aistudio.google.com/docs/file-input-methods.md?generate-content=true
+- https://aistudio.google.com/docs/thinking.md?generate-content=true
+- https://aistudio.google.com/docs/whats-new-gemini-3.6.md?generate-content=true
+- https://aistudio.google.com/docs/models.md
+
+Ollama:
+- https://docs.ollama.com/api/chat ／ https://docs.ollama.com/openapi.yaml
+- https://docs.ollama.com/api/streaming ／ https://docs.ollama.com/api/errors
+- https://docs.ollama.com/capabilities/tool-calling ／ https://docs.ollama.com/capabilities/thinking
+- https://docs.ollama.com/context-length ／ https://docs.ollama.com/faq
+- https://docs.ollama.com/capabilities/web-search ／ https://docs.ollama.com/api/openai-compatibility
+- https://github.com/ollama/ollama （`api/types.go`, `server/routes.go`, `envconfig/config.go` ― 資料に無い点の確認用。リリース版と一致するかは未確認）
+
+### 12.2 実測（2026-11-07・師匠の Mac）
+
+| 対象 | 結果 |
+| :--- | :--- |
+| Ollama のバージョン | 0.17.7 |
+| `/api/show` の capabilities | `gemma4:e4b-mlx` / `gemma4:e2b-mlx`: completion, vision, audio ／ `gpt-oss:120b-cloud`: completion, tools, thinking |
+| 存在しないモデルへの `/api/chat` | HTTP 404 `{"error":"model 'no-such-model:1b' not found"}` |
+| `gemma4:*-mlx` への `/api/chat` | HTTP 500 `mlx runner failed: unsupported architecture`（ストリームでも 500） |
+| Gemini `models.list`（このキー） | 成功。`gemini-3.8-flash` などを確認 |
+| Gemini `countTokens` | 成功（HTTP 200） |
+| Gemini `generateContent` | **実測できず**（R-08） |
