@@ -1,6 +1,6 @@
 {
   "sprint_id": "c47f60bc-740f-4bae-b532-23e27cbd25b1",
-  "status": "reviewing",
+  "status": "completed",
   "goal": "コア＋Chat の実装 M0〜M6（おまかせ自走）",
   "created_at": "2026-11-07T15:31:05+09:00",
   "agreement_path": ".pair-agent/agreements/core-chat-implementation.md"

@@ -1,7 +1,7 @@
 ---
 sprint_id: c47f60bc-740f-4bae-b532-23e27cbd25b1
-version: 4
-status: reviewing
+version: 5
+status: completed
 created_at: 2026-11-07T16:30:00+09:00
 updated_at: 2026-11-07T16:30:00+09:00
 domain_tags: [python-sdk, implementation, llm-provider]
@@ -77,3 +77,5 @@ change_count_improvement: 0
 - 実応答の記録: 「記録して置き換える」
 
 - v4 [2026-11-07]: R-08 を解消
+- 師匠（原文）: 「未確認として残して良いです。次へ進んでください」→ google_search の live 確認は未確認のまま残す。スプリントは完了
+- v5 [2026-11-07]: status を completed に変更
