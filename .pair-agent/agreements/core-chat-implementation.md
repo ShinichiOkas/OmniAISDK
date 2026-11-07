@@ -1,6 +1,6 @@
 ---
 sprint_id: c47f60bc-740f-4bae-b532-23e27cbd25b1
-version: 2
+version: 3
 status: executing
 created_at: 2026-11-07T16:30:00+09:00
 updated_at: 2026-11-07T16:30:00+09:00
@@ -60,8 +60,10 @@ change_count_improvement: 0
 | P-10 | ToolRunner: handler の無い ToolDefinition は pending_tool_calls で返す | 呼び出し側で実行するツールと混在させるため |
 | P-11 | live テストは環境変数で有効化。Ollama の live 5 件は実行して通過 | R-07 |
 | P-12 | 実装の独立レビューを、別の文脈のエージェントに依頼した | 作った本人のテストは同じ盲点を共有するため |
+| P-13 | レビューの指摘 12 件（9 件は再現済み）と補足 1 件をすべて修正し、回帰テストを足した | 再現スクリプトで修正を確認済み |
 
 ## 変更ログ
 
 - v1 [2026-11-07T16:30:00+09:00]: 初版
 - v2 [2026-11-07]: M0〜M6 と Ollama の live 確認を完了。判断一覧を記録
+- v3 [2026-11-07]: 独立レビューの指摘を修正
