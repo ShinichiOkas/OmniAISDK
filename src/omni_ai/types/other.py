@@ -95,6 +95,7 @@ class EmbeddingResponse(BaseModel):
     vectors: list[list[float]]
     dimensions: int
     meta: ResponseMeta
+    normalized: bool = False  # L2 正規化済みか
 
 
 class RerankItem(BaseModel):

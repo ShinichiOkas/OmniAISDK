@@ -35,6 +35,7 @@ __all__ = [
     "ChatCapability",
     "DocumentParserCapability",
     "EmbeddingCapability",
+    "EmbeddingTask",
     "ImageCapability",
     "JudgeCapability",
     "MCPCapability",
@@ -234,24 +235,43 @@ class AudioCapability(Capability):
     ) -> AudioTranscriptionResponse: ...
 
 
+EmbeddingTask = Literal["query", "document"]
+
+
 class EmbeddingCapability(Capability):
+    """埋め込み。共通の決まり（実装設計書 §14）:
+
+    - ``texts`` が空リストなら API を呼ばずに空の応答を返す。空文字列は ``InvalidRequestError``
+    - ``normalize=True``（既定）で L2 正規化して返す（プロバイダ間で cosine 類似度の扱いを揃える）
+    - ``task`` は検索の非対称性（query / document）。対応しないプロバイダは無視する（debug ログ）
+    - ``dimensions`` を縮められないモデルで指定すると ``UnsupportedFeatureError``
+    """
+
+    default_model: str | None = None
+
     @abstractmethod
     def embed(
         self,
-        texts: str | list[str],
+        texts: str | Sequence[str],
         *,
         model: str | None = None,
         dimensions: int | None = None,
+        task: EmbeddingTask | None = None,
+        normalize: bool = True,
+        timeout: float | None = None,
         **provider_options: Any,
     ) -> EmbeddingResponse: ...
 
     @abstractmethod
     async def aembed(
         self,
-        texts: str | list[str],
+        texts: str | Sequence[str],
         *,
         model: str | None = None,
         dimensions: int | None = None,
+        task: EmbeddingTask | None = None,
+        normalize: bool = True,
+        timeout: float | None = None,
         **provider_options: Any,
     ) -> EmbeddingResponse: ...
 

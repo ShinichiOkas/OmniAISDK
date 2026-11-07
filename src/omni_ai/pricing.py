@@ -21,7 +21,9 @@ class ModelPrice(BaseModel):
 
 
 def default_is_free(provider: str, model: str) -> bool:
-    """ローカルの Ollama だけを無料とみなす（``:cloud`` / ``-cloud`` は ollama.com 上で動く）。"""
+    """プロセス内のローカル実装と、ローカルの Ollama を無料とみなす（``:cloud`` は ollama.com 上で動く）。"""
+    if provider == "local":
+        return True
     return provider == "ollama" and not model.endswith((":cloud", "-cloud"))
 
 

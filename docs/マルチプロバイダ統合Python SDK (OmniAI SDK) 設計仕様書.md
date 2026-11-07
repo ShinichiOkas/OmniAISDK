@@ -331,6 +331,7 @@ class EmbeddingResponse(BaseModel):
     vectors: List[List[float]]
     dimensions: int
     meta: ResponseMeta
+    normalized: bool = False   # v3.1: L2 正規化済みか（embed(normalize=True) が既定）
 
 class RerankItem(BaseModel):
     index: int
@@ -1238,6 +1239,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+local = ["fastembed>=0.4"]   # v3.1: プロセス内のローカル埋め込み（ONNX）。onnxruntime はバイナリ wheel のため extras
 jev = ["typesafe-sdk>=0.1.0"]
 mcp = ["mcp>=1.0.0"]
 sandbox = ["e2b-code-interpreter>=1.0.0"]
@@ -1284,3 +1286,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-16 | §9.4 | src レイアウト、`types/` パッケージ化、`_http/` `pricing.py` 追加、パッケージ版を 0.1.0 から開始、dev 依存に hypothesis | 実装設計書 §3 にあわせた |
 | D-17 | §9.5 | 番号が 8〜13 になっていたのを 1〜6 に修正 | 書式の崩れ |
 | D-18 | §4, §5, §8.4, §9.3 | 実装 (M0〜M6) にあわせた追補: `ChatResponse.provider_state`、`supported_builtins` をインスタンス属性に、`ToolRunResult.pending_tool_calls`、`normalize_ollama_host` を公開名に | 実装設計書 §13 |
+| D-19 | §4, §5, §9.4 | Embedding を実装: `EmbeddingCapability.embed` に `task` / `normalize` / `timeout` を追加、`EmbeddingResponse.normalized` を追加。プロセス内のローカル埋め込み（fastembed、extras `[local]`、Mnemo と同じモデル）を追加 | 実装設計書 §14 |

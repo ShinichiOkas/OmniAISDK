@@ -1,0 +1,4 @@
+{
+ "model": "gemma4:31b-cloud",
+ "input": "x"
+}

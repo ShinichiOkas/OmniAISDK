@@ -1,0 +1,14 @@
+{
+ "path": "models/gemini-embedding-001:embedContent",
+ "body": {
+  "content": {
+   "parts": [
+    {
+     "text": "hello world"
+    }
+   ]
+  },
+  "outputDimensionality": 256,
+  "taskType": "RETRIEVAL_QUERY"
+ }
+}

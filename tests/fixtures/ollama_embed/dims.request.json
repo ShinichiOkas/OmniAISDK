@@ -1,0 +1,7 @@
+{
+ "model": "nomic-embed-text",
+ "input": [
+  "apple"
+ ],
+ "dimensions": 256
+}

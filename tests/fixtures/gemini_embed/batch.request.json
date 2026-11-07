@@ -1,0 +1,40 @@
+{
+ "path": "models/gemini-embedding-001:batchEmbedContents",
+ "body": {
+  "requests": [
+   {
+    "model": "models/gemini-embedding-001",
+    "content": {
+     "parts": [
+      {
+       "text": "apple"
+      }
+     ]
+    },
+    "outputDimensionality": 256
+   },
+   {
+    "model": "models/gemini-embedding-001",
+    "content": {
+     "parts": [
+      {
+       "text": "banana"
+      }
+     ]
+    },
+    "outputDimensionality": 256
+   },
+   {
+    "model": "models/gemini-embedding-001",
+    "content": {
+     "parts": [
+      {
+       "text": "\u6771\u4eac"
+      }
+     ]
+    },
+    "outputDimensionality": 256
+   }
+  ]
+ }
+}

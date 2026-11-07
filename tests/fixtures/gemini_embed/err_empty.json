@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 400,
+    "message": "EmbedContentRequest.content contains an empty Part.",
+    "status": "INVALID_ARGUMENT"
+  }
+}

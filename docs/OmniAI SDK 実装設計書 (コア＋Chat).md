@@ -768,3 +768,37 @@ Ollama:
 | I-18 | prefill（最後が assistant）を送信前に拒否しない | 実測: 3.1-flash-lite は受け付けた | — |
 | I-19 | Gemini の契約テストを、実 API の記録（`tests/fixtures/gemini/`）に置き換えた。SDK が組み立てる並列ツール呼び出しの往復の要求が、実 API で 200 になった要求と**完全に一致**することを確認。記録できないケース（402・503・grounding 等）だけ手作りの応答を残した | R-08 の解消 | — |
 
+---
+
+## 14. Embedding（2026-11-07 追加スプリント）
+
+師匠の指示: 「Embedding (Recommended)」、追加で「ローカル実装の埋め込みにも対応させて欲しい。../Mnemo/で標準的に使用している埋め込みを使いたい。」
+
+### 14.1 アダプター
+
+| アダプター | 方式 | 既定モデル | 確認 |
+| :--- | :--- | :--- | :--- |
+| `GeminiEmbeddingAdapter` | `batchEmbedContents`（100 件ずつ分割。上限は [未検証]） | `gemini-embedding-2`（3072 次元。`usageMetadata` を返す） | 記録＋live |
+| `OllamaEmbeddingAdapter` | `/api/embed`（256 件ずつ分割） | なし（必須）。live は `nomic-embed-text`（768 次元） | 記録＋live |
+| `LocalEmbeddingAdapter` | プロセス内の **fastembed（ONNX）**。extras `[local]` | **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`**（384 次元。Mnemo と同じ） | live（Mnemo のキャッシュを共有） |
+
+### 14.2 共通の決まり（`EmbeddingCapability`）
+
+| 決まり | 理由（実測） |
+| :--- | :--- |
+| 空リストは API を呼ばずに空の応答。空文字列は送信前に `InvalidRequestError` | Gemini は 400、Ollama は 200 で `embeddings: []`（件数がずれる） |
+| 返ってきたベクトルの件数が入力と違えば `OmniError` | 件数のずれを黙って通さない |
+| `normalize=True`（既定）で L2 正規化。`EmbeddingResponse.normalized` で示す | プロバイダ間・Mnemo との互換（Mnemo は L2 正規化済みを使う） |
+| `task="query" / "document"` を追加。Gemini は `taskType` に写像、他は無視（debug ログ） | 検索の非対称性を共通の書き方で指定するため |
+| `dimensions` は Gemini（`outputDimensionality`）と Ollama（`dimensions`）で有効。ローカルは固定次元なので、違う値なら `UnsupportedFeatureError` | |
+| Ollama は送信前に `/api/show` で `embedding` 能力を確認 | チャット用モデルだと 404「pull してください」という紛らわしい応答になる |
+| Ollama の `truncate` は既定 true（切り詰め）。false なら超過は `ContextLengthExceededError` | 実測で既定は黙って切り詰め |
+| `OmniClient.embedding` も計測プロキシで包む。ローカルは単価 0 | テレメトリを Chat と揃える |
+
+### 14.3 ローカル実装（Mnemo 互換）
+
+- Mnemo の `src/mnemo/core/embedding.py` と同じく、fastembed の出力（未正規化）を L2 正規化する。初回の `embed` で読み込み（スレッド安全）、非同期版はスレッドで実行する
+- 既定のキャッシュは OS 標準（platformdirs）の `.../omni_ai/models`。`cache_dir=MNEMO_CACHE_DIR`（`~/.mnemo/models`）を渡せば、Mnemo と同じモデルファイルを共有し、再ダウンロードしない。`local_files_only=True` でネットワークに出ない
+- **実測（2026-11-07・Mac）**: Mnemo の `EmbeddingModel.batch_encode` と同じ 3 文で比べ、cos = 0.9999999、要素ごとの差は最大 1e-4。fastembed のバージョン違い（Mnemo 0.8.0 / 本 SDK の開発環境 0.9.1）による差と推測（未確認）
+- fastembed は onnxruntime（バイナリ wheel）に依存するため、コア依存には入れず extras にした（ADR-02 の明確化・ADR-03 の範囲内）
+

@@ -34,7 +34,15 @@ from .exceptions import (
     UnsupportedFeatureError,
 )
 from .pricing import PricingTable
-from .types import BuiltinTool, ChatMessage, ChatResponse, ResponseMeta, StreamEvent, ToolSpec
+from .types import (
+    BuiltinTool,
+    ChatMessage,
+    ChatResponse,
+    EmbeddingResponse,
+    ResponseMeta,
+    StreamEvent,
+    ToolSpec,
+)
 
 if TYPE_CHECKING:
     from .tools import ToolRunner
@@ -165,6 +173,37 @@ class InstrumentedChat(ChatCapability):
                 if ev.type == "message_complete" and ev.response is not None:
                     self._recorder.record(ev.response.meta, started, first)
                 yield ev
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
+class InstrumentedEmbedding(EmbeddingCapability):
+    """OmniClient.embedding が返すプロキシ。時間・コストを記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: EmbeddingCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+        self.default_model = inner.default_model
+
+    def embed(self, texts: str | Sequence[str], **kwargs: Any) -> EmbeddingResponse:
+        started = time.perf_counter()
+        res = self.inner.embed(texts, **kwargs)
+        if res.vectors:
+            self._recorder.record(res.meta, started)
+        return res
+
+    async def aembed(self, texts: str | Sequence[str], **kwargs: Any) -> EmbeddingResponse:
+        started = time.perf_counter()
+        res = await self.inner.aembed(texts, **kwargs)
+        if res.vectors:
+            self._recorder.record(res.meta, started)
+        return res
 
     def close(self) -> None:
         self.inner.close()
@@ -342,6 +381,9 @@ class OmniClient:
         self.pricing = pricing or PricingTable()
         self._recorder = _Recorder(self.telemetry, self.pricing, on_response)
         self._chat_proxy = InstrumentedChat(chat, self._recorder) if chat is not None else None
+        self._embedding_proxy = (
+            InstrumentedEmbedding(embedding, self._recorder) if embedding is not None else None
+        )
 
     def _get(self, name: str) -> Any:
         cap = self._caps[name]
@@ -378,8 +420,9 @@ class OmniClient:
 
     @property
     def embedding(self) -> EmbeddingCapability:
-        cap: EmbeddingCapability = self._get("embedding")
-        return cap
+        if self._embedding_proxy is None:
+            raise CapabilityNotConfiguredError("embedding provider is not configured.", provider="omni")
+        return self._embedding_proxy
 
     @property
     def rerank(self) -> RerankCapability:
