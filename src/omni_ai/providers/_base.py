@@ -191,11 +191,24 @@ class BaseChatAdapter(ChatCapability):
 
         return mapper
 
-    def _postprocess_stream(self, events: list[StreamEvent], req: ChatRequest, attempts: int) -> None:
-        for ev in events:
-            if ev.type == "message_complete" and ev.response is not None:
-                self._finalize(ev.response, req, attempts)
-                ev.meta = ev.response.meta
+    def _complete(self, ev: StreamEvent, req: ChatRequest, attempts: int) -> StreamEvent:
+        """message_complete を、feed / finish のどちらから出たかに関係なく後処理する。"""
+        if ev.type == "message_complete" and ev.response is not None:
+            self._finalize(ev.response, req, attempts)
+            ev.meta = ev.response.meta
+        return ev
+
+    def _interrupted(self, exc: OmniError, req: ChatRequest, emitted: bool) -> OmniError:
+        # 構造化出力の検証失敗は通信の失敗ではないので、そのまま返す
+        if emitted and not isinstance(exc, (StreamInterruptedError, SchemaValidationError)):
+            err = StreamInterruptedError(
+                f"stream interrupted after partial output: {exc.message}",
+                provider=self.provider_name,
+                model=req.model,
+                raw_error=exc,
+            )
+            return err
+        return exc
 
     # ------------------------------------------------------------------ 同期
 
@@ -273,20 +286,16 @@ class BaseChatAdapter(ChatCapability):
             try:
                 for chunk in self._sync.iter_bytes(handle):
                     for ev in state.feed(chunk):
+                        yield self._complete(ev, req, handle.attempts)
                         emitted = True
-                        yield ev
-                tail = state.finish()
-                self._postprocess_stream(tail, req, handle.attempts)
-                yield from tail
+                for ev in state.finish():
+                    yield self._complete(ev, req, handle.attempts)
+                    emitted = True
             except OmniError as exc:
-                if emitted and not isinstance(exc, StreamInterruptedError):
-                    raise StreamInterruptedError(
-                        f"stream interrupted after partial output: {exc.message}",
-                        provider=self.provider_name,
-                        model=req.model,
-                        raw_error=exc,
-                    ) from exc
-                raise
+                err = self._interrupted(exc, req, emitted)
+                if err is exc:
+                    raise
+                raise err from exc
 
     # ------------------------------------------------------------------ 非同期
 
@@ -361,29 +370,33 @@ class BaseChatAdapter(ChatCapability):
             error_mapper=self._error_mapper_for(req.model),
         ) as handle:
             state = self._new_stream_state(req)
+            chunks = self._async.aiter_bytes(handle)
             try:
-                async for chunk in self._async.aiter_bytes(handle):
+                async for chunk in chunks:
                     for ev in state.feed(chunk):
+                        yield self._complete(ev, req, handle.attempts)
                         emitted = True
-                        yield ev
-                tail = state.finish()
-                self._postprocess_stream(tail, req, handle.attempts)
-                for ev in tail:
-                    yield ev
+                for ev in state.finish():
+                    yield self._complete(ev, req, handle.attempts)
+                    emitted = True
             except OmniError as exc:
-                if emitted and not isinstance(exc, StreamInterruptedError):
-                    raise StreamInterruptedError(
-                        f"stream interrupted after partial output: {exc.message}",
-                        provider=self.provider_name,
-                        model=req.model,
-                        raw_error=exc,
-                    ) from exc
-                raise
+                err = self._interrupted(exc, req, emitted)
+                if err is exc:
+                    raise
+                raise err from exc
+            finally:
+                # 利用者が途中で読むのをやめても、内側の非同期ジェネレータを確実に閉じる
+                await chunks.aclose()
 
     # ------------------------------------------------------------------ 終了処理
 
     def close(self) -> None:
+        """同期 transport を閉じ、非同期 transport も以後使えなくする。
+
+        非同期クライアントの接続は await しないと閉じられないため、作成済みなら aclose() を案内する。
+        """
         self._sync.close()
+        self._async.mark_closed_sync()
 
     async def aclose(self) -> None:
         await self._async.aclose()

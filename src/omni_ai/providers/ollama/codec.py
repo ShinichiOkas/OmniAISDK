@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from ..._http import NDJSONDecoder
+from ..._http import MalformedLine, NDJSONDecoder
 from ..._media import to_base64
 from ...exceptions import (
     AuthenticationError,
@@ -239,6 +239,14 @@ class OllamaStreamState:
     def _handle(self, objs: list[Any]) -> list[StreamEvent]:
         events: list[StreamEvent] = []
         for obj in objs:
+            if isinstance(obj, MalformedLine):
+                self._pending_error = ProviderOverloadedError(
+                    f"malformed line in Ollama stream: {obj.text!r}",
+                    provider=PROVIDER,
+                    model=self.req.model,
+                    retryable=False,
+                )
+                break
             if not isinstance(obj, dict):
                 continue
             if "error" in obj:

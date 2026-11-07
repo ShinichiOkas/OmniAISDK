@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["NDJSONDecoder", "SSEDecoder", "SSEEvent"]
+__all__ = ["MalformedLine", "NDJSONDecoder", "SSEDecoder", "SSEEvent"]
 
 
 class _LineSplitter:
@@ -104,14 +104,28 @@ class SSEDecoder:
         return [ev]
 
 
+@dataclass(frozen=True)
+class MalformedLine:
+    """JSON として読めなかった行。例外にせず、順序を保ったまま呼び出し側に渡す。"""
+
+    text: str
+
+
+def _parse_line(line: str) -> Any:
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        return MalformedLine(line[:200])
+
+
 @dataclass
 class NDJSONDecoder:
-    """改行区切り JSON。空行は無視する。"""
+    """改行区切り JSON。空行は無視し、壊れた行は MalformedLine として返す。"""
 
     _lines: _LineSplitter = field(default_factory=_LineSplitter)
 
     def feed(self, chunk: bytes) -> list[Any]:
-        return [json.loads(line) for line in self._lines.feed(chunk) if line.strip()]
+        return [_parse_line(line) for line in self._lines.feed(chunk) if line.strip()]
 
     def flush(self) -> list[Any]:
-        return [json.loads(line) for line in self._lines.flush() if line.strip()]
+        return [_parse_line(line) for line in self._lines.flush() if line.strip()]

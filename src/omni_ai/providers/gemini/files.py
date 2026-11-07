@@ -13,7 +13,7 @@ import anyio
 import anyio.to_thread
 
 from ..._http import NO_RETRY, AsyncTransport, SyncTransport
-from ..._media import display_name, media_size
+from ..._media import display_name, media_size, rewind, tell_or_none
 from ...exceptions import InvalidRequestError, ProviderTimeoutError
 from ...types import FileRef
 
@@ -89,9 +89,16 @@ def upload_file(t: SyncTransport, source: Any, mime_type: str, *, wait_timeout: 
     session = start.response.headers.get("x-goog-upload-url")
     if not session:
         raise InvalidRequestError("Gemini upload did not return x-goog-upload-url", provider=PROVIDER)
-    with ExitStack() as stack:
-        content = stack.enter_context(source.open("rb")) if isinstance(source, Path) else source
-        done = t.request("POST", session, headers=_FINALIZE, content=content, retry=NO_RETRY)
+    start_pos = tell_or_none(source) if not isinstance(source, (bytes, Path)) else None
+    # Content-Length は「現在位置から末尾まで」を明示する（httpx の推定はストリーム全体の長さになる）
+    headers = {**_FINALIZE, "Content-Length": str(size)}
+    try:
+        with ExitStack() as stack:
+            content = stack.enter_context(source.open("rb")) if isinstance(source, Path) else source
+            done = t.request("POST", session, headers=headers, content=content, retry=NO_RETRY)
+    finally:
+        if not isinstance(source, (bytes, Path)):
+            rewind(source, start_pos)
     ref, state = _to_ref(done.json(), mime_type)
     deadline = time.monotonic() + wait_timeout
     delay = 0.5
@@ -118,9 +125,14 @@ async def aupload_file(
     session = start.response.headers.get("x-goog-upload-url")
     if not session:
         raise InvalidRequestError("Gemini upload did not return x-goog-upload-url", provider=PROVIDER)
+    start_pos = tell_or_none(source) if not isinstance(source, (bytes, Path)) else None
     content: Any = source if isinstance(source, bytes) else _achunks(source)
     headers = {**_FINALIZE, "Content-Length": str(size)}
-    done = await t.request("POST", session, headers=headers, content=content, retry=NO_RETRY)
+    try:
+        done = await t.request("POST", session, headers=headers, content=content, retry=NO_RETRY)
+    finally:
+        if not isinstance(source, (bytes, Path)):
+            rewind(source, start_pos)
     ref, state = _to_ref(done.json(), mime_type)
     deadline = time.monotonic() + wait_timeout
     delay = 0.5

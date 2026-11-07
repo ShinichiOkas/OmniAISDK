@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,9 @@ from typing import Any
 from .exceptions import UnsupportedFeatureError
 from .types.media import FileRef, UrlRef, is_binary_stream
 
-__all__ = ["b64_size", "load_bytes", "media_size", "to_base64"]
+__all__ = ["b64_size", "load_bytes", "media_size", "rewind", "tell_or_none", "to_base64"]
+
+logger = logging.getLogger("omni_ai")
 
 _CHUNK = 1024 * 1024
 
@@ -38,6 +41,22 @@ def media_size(source: Any) -> int | None:
     return None
 
 
+def tell_or_none(source: Any) -> int | None:
+    try:
+        pos = source.tell()
+        return int(pos) if source.seekable() else None
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
+def rewind(source: Any, start: int | None) -> None:
+    """読み終えたストリームを元の位置に戻す。戻せないストリームは 1 回しか送れないので警告する。"""
+    if start is not None:
+        source.seek(start)
+    else:
+        logger.warning("non-seekable media stream was consumed; it cannot be sent again (use bytes or Path)")
+
+
 def load_bytes(source: Any, *, limit: int, provider: str) -> bytes:
     """bytes / Path / ストリームを、``limit`` バイトを超えない範囲で読み込む。"""
     if isinstance(source, (FileRef, UrlRef)):
@@ -52,16 +71,21 @@ def load_bytes(source: Any, *, limit: int, provider: str) -> bytes:
     if isinstance(source, Path):
         return source.read_bytes()
     if is_binary_stream(source):
+        # 同じ履歴を何度も送る（ToolRunner の各ターン・フォールバック）ので、読んだら元の位置に戻す
+        start = tell_or_none(source)
         buf = bytearray()
-        while True:
-            chunk = source.read(_CHUNK)
-            if not chunk:
-                break
-            buf.extend(chunk)
-            if len(buf) > limit:
-                raise UnsupportedFeatureError(
-                    f"media stream exceeds the inline limit of {limit} bytes", provider=provider
-                )
+        try:
+            while True:
+                chunk = source.read(_CHUNK)
+                if not chunk:
+                    break
+                buf.extend(chunk)
+                if len(buf) > limit:
+                    raise UnsupportedFeatureError(
+                        f"media stream exceeds the inline limit of {limit} bytes", provider=provider
+                    )
+        finally:
+            rewind(source, start)
         return bytes(buf)
     raise TypeError(f"unsupported media source: {type(source).__name__}")
 

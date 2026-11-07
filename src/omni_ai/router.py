@@ -7,6 +7,7 @@ import threading
 import time
 from collections import defaultdict
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
+from contextlib import aclosing
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
@@ -157,12 +158,13 @@ class InstrumentedChat(ChatCapability):
     async def astream(self, messages: Sequence[ChatMessage], **kwargs: Any) -> AsyncIterator[StreamEvent]:
         started = time.perf_counter()
         first: float | None = None
-        async for ev in self.inner.astream(messages, **kwargs):
-            if first is None:
-                first = time.perf_counter()
-            if ev.type == "message_complete" and ev.response is not None:
-                self._recorder.record(ev.response.meta, started, first)
-            yield ev
+        async with aclosing(self.inner.astream(messages, **kwargs)) as inner:  # type: ignore[type-var]
+            async for ev in inner:
+                if first is None:
+                    first = time.perf_counter()
+                if ev.type == "message_complete" and ev.response is not None:
+                    self._recorder.record(ev.response.meta, started, first)
+                yield ev
 
     def close(self) -> None:
         self.inner.close()
@@ -280,20 +282,21 @@ class FallbackChatAdapter(ChatCapability):
     ) -> AsyncIterator[StreamEvent]:  # fmt: skip
         errors: list[OmniError] = []
         for p in self._candidates(tools):
-            it = aiter(p.astream(messages, model=self._map_model(p, model), tools=tools, **kwargs))
-            try:
-                first = await anext(it)
-            except StopAsyncIteration:
+            gen = p.astream(messages, model=self._map_model(p, model), tools=tools, **kwargs)
+            async with aclosing(gen) as it:  # type: ignore[type-var]
+                try:
+                    first = await anext(it)
+                except StopAsyncIteration:
+                    return
+                except self.fallback_on as e:
+                    errors.append(e)
+                    continue
+                self._stamp(first, errors)
+                yield first
+                async for ev in it:
+                    self._stamp(ev, errors)
+                    yield ev
                 return
-            except self.fallback_on as e:
-                errors.append(e)
-                continue
-            self._stamp(first, errors)
-            yield first
-            async for ev in it:
-                self._stamp(ev, errors)
-                yield ev
-            return
         raise self._exhausted(errors)
 
     @staticmethod

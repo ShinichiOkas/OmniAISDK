@@ -423,7 +423,13 @@ class GeminiStreamState:
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
-                continue
+                self._pending_error = ProviderOverloadedError(
+                    f"malformed event in Gemini stream: {raw[:200]!r}",
+                    provider=PROVIDER,
+                    model=self.req.model,
+                    retryable=False,
+                )
+                break
             if not isinstance(data, dict):
                 continue
             if "error" in data:  # [未実測] ストリーム途中のエラーの形

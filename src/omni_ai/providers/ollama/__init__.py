@@ -11,7 +11,7 @@ import httpx
 from ..._http import RetryPolicy
 from ...compat import PlatformCompat
 from ...config import resolve_setting
-from ...exceptions import OmniError, ProviderConnectionError, UnsupportedFeatureError
+from ...exceptions import OmniError, ProviderConnectionError, ProviderTimeoutError, UnsupportedFeatureError
 from ...types import BuiltinTool, ChatResponse
 from .._base import BaseChatAdapter, ChatRequest, StreamState
 from . import codec
@@ -128,7 +128,8 @@ class OllamaChatAdapter(BaseChatAdapter):
                     error_mapper=self._error_mapper_for(req.model),
                 ).json()
             except ProviderConnectionError as exc:
-                if not self._switch_to_container_host(exc):
+                # タイムアウト（遅いだけ）では接続先を切り替えない
+                if isinstance(exc, ProviderTimeoutError) or not self._switch_to_container_host(exc):
                     raise
                 data = self._sync.request(
                     "POST",
@@ -151,7 +152,8 @@ class OllamaChatAdapter(BaseChatAdapter):
                     error_mapper=self._error_mapper_for(req.model),
                 )
             except ProviderConnectionError as exc:
-                if not self._switch_to_container_host(exc):
+                # タイムアウト（遅いだけ）では接続先を切り替えない
+                if isinstance(exc, ProviderTimeoutError) or not self._switch_to_container_host(exc):
                     raise
                 result = await self._async.request(
                     "POST",

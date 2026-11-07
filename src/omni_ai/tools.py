@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal
 
 import anyio
@@ -172,7 +173,9 @@ class ToolRunner:
             return _to_text({"error": f"unknown tool {call.name!r}"})
         try:
             if tool.is_async:
-                return _to_text(anyio.run(tool.ainvoke, call.arguments))
+                # 既にループが走る環境（Jupyter 等）でも動くよう、別スレッドの新しいループで実行する
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    return _to_text(pool.submit(anyio.run, tool.ainvoke, call.arguments).result())
             return _to_text(tool.invoke(call.arguments))
         except Exception as exc:
             return self._error_result(call, exc)
@@ -203,13 +206,15 @@ class ToolRunner:
             history.append(res.to_message())
             if not res.tool_calls:
                 return ToolRunResult(response=res, messages=history, turns=turn, metas=metas)
-            if pending := self._external_calls(res, external):
-                return ToolRunResult(
-                    response=res, messages=history, turns=turn, metas=metas, pending_tool_calls=pending
-                )
-            for call in res.tool_calls:
+            internal = [c for c in res.tool_calls if c.name not in external]
+            for call in internal:
                 history.append(
                     ChatMessage.tool(self._run_one(call, handlers), tool_call_id=call.id, name=call.name)
+                )
+            if pending := self._external_calls(res, external):
+                # 内部ツールは実行済み。外部ツールの結果は呼び出し側が履歴に足して続ける
+                return ToolRunResult(
+                    response=res, messages=history, turns=turn, metas=metas, pending_tool_calls=pending
                 )
         assert res is not None
         partial = ToolRunResult(response=res, messages=history, turns=self.max_turns, metas=metas)
@@ -218,6 +223,27 @@ class ToolRunner:
             provider=self.chat.provider_name,
             partial_result=partial,
         )
+
+    async def _arun_many(self, calls: list[ToolCall], handlers: dict[str, OmniTool]) -> list[str]:
+        results: list[str] = [""] * len(calls)
+        if not (self.parallel_tool_calls and len(calls) > 1):
+            for i, call in enumerate(calls):
+                results[i] = await self._arun_one(call, handlers)
+            return results
+        errors: list[BaseException] = []
+
+        async def worker(i: int, call: ToolCall) -> None:
+            try:
+                results[i] = await self._arun_one(call, handlers)
+            except Exception as exc:  # on_tool_error="raise" のとき。ExceptionGroup で包まずに返す
+                errors.append(exc)
+
+        async with anyio.create_task_group() as tg:
+            for i, call in enumerate(calls):
+                tg.start_soon(worker, i, call)
+        if errors:
+            raise errors[0]
+        return results
 
     async def arun(
         self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec], **opts: Any
@@ -232,24 +258,14 @@ class ToolRunner:
             history.append(res.to_message())
             if not res.tool_calls:
                 return ToolRunResult(response=res, messages=history, turns=turn, metas=metas)
+            internal = [c for c in res.tool_calls if c.name not in external]
+            outputs = await self._arun_many(internal, handlers)
+            for call, out in zip(internal, outputs, strict=True):
+                history.append(ChatMessage.tool(out, tool_call_id=call.id, name=call.name))
             if pending := self._external_calls(res, external):
                 return ToolRunResult(
                     response=res, messages=history, turns=turn, metas=metas, pending_tool_calls=pending
                 )
-            results: list[str] = [""] * len(res.tool_calls)
-            if self.parallel_tool_calls and len(res.tool_calls) > 1:
-
-                async def worker(i: int, call: ToolCall, out: list[str] = results) -> None:
-                    out[i] = await self._arun_one(call, handlers)
-
-                async with anyio.create_task_group() as tg:
-                    for i, call in enumerate(res.tool_calls):
-                        tg.start_soon(worker, i, call)
-            else:
-                for i, call in enumerate(res.tool_calls):
-                    results[i] = await self._arun_one(call, handlers)
-            for call, out in zip(res.tool_calls, results, strict=True):
-                history.append(ChatMessage.tool(out, tool_call_id=call.id, name=call.name))
         assert res is not None
         partial = ToolRunResult(response=res, messages=history, turns=self.max_turns, metas=metas)
         raise ToolLoopLimitError(

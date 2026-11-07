@@ -1,5 +1,5 @@
 from .retry import NO_RETRY, RetryPolicy
-from .streams import NDJSONDecoder, SSEDecoder, SSEEvent
+from .streams import MalformedLine, NDJSONDecoder, SSEDecoder, SSEEvent
 from .transport import AsyncTransport, ErrorMapper, HttpResult, StreamHandle, SyncTransport, redact_headers
 
 __all__ = [
@@ -7,6 +7,7 @@ __all__ = [
     "AsyncTransport",
     "ErrorMapper",
     "HttpResult",
+    "MalformedLine",
     "NDJSONDecoder",
     "RetryPolicy",
     "SSEDecoder",

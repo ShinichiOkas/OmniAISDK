@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import time
-from collections.abc import AsyncIterator, Callable, Iterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Iterator, Mapping
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -25,6 +26,8 @@ __all__ = [
 ]
 
 ErrorMapper = Callable[[int, bytes, Mapping[str, str]], OmniError]
+
+logger = logging.getLogger("omni_ai")
 
 DEFAULT_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=60.0, pool=10.0)
 _SENSITIVE = ("key", "auth", "cookie", "token", "secret")
@@ -152,9 +155,14 @@ class SyncTransport(_TransportBase):
             else:
                 if response.is_success:
                     return response, attempt
-                body = response.read()
-                response.close()
-                err = self._error_from_response(response, body, mapper)
+                try:
+                    body = response.read()
+                except httpx.HTTPError as exc:
+                    err = self._map_exception(exc)
+                else:
+                    err = self._error_from_response(response, body, mapper)
+                finally:
+                    response.close()
             delay = policy.next_delay(attempt, err)
             if delay is None:
                 raise err
@@ -275,9 +283,14 @@ class AsyncTransport(_TransportBase):
             else:
                 if response.is_success:
                     return response, attempt
-                body = await response.aread()
-                await response.aclose()
-                err = self._error_from_response(response, body, mapper)
+                try:
+                    body = await response.aread()
+                except httpx.HTTPError as exc:
+                    err = self._map_exception(exc)
+                else:
+                    err = self._error_from_response(response, body, mapper)
+                finally:
+                    await response.aclose()
             delay = policy.next_delay(attempt, err)
             if delay is None:
                 raise err
@@ -333,12 +346,20 @@ class AsyncTransport(_TransportBase):
         finally:
             await response.aclose()
 
-    async def aiter_bytes(self, handle: StreamHandle) -> AsyncIterator[bytes]:
+    async def aiter_bytes(self, handle: StreamHandle) -> AsyncGenerator[bytes, None]:
         try:
             async for chunk in handle.response.aiter_bytes():
                 yield chunk
         except httpx.HTTPError as exc:
             raise self._map_exception(exc) from exc
+
+    def mark_closed_sync(self) -> None:
+        """await できない close() から呼ぶ。以後の利用をエラーにする。"""
+        if self._client is not None and self._owns_client and not self._client.is_closed:
+            logger.warning(
+                "%s: async HTTP client is still open; call `await aclose()` to release it", self.provider
+            )
+        self.closed = True
 
     async def aclose(self) -> None:
         if self._client is not None and self._owns_client:
