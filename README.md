@@ -93,6 +93,18 @@ OmniAISDK/
 | Image | **保留**（Ollama は v0.32.6 で画像生成を削除、Gemini は課金の設定が必要。実装設計書 §21） |
 | Sandbox: ローカルの Docker（ネットワーク遮断・読み取り専用・資源制限） | 実装済み・実物で確認済み（Ollama の CODE_EXECUTION 代行も end-to-end） |
 
+## インストールと設定
+
+詳しくは [docs/install.md](./docs/install.md)。
+
+```bash
+pip install -e ".[local,search,docs,mcp,audio]"
+omni-ai            # メニュー方式のセットアップ
+omni-ai doctor     # 環境の診断
+```
+
+設定ファイル（`config.toml` / `secrets.toml`）を作れば、`OmniClient.from_config()` で組み立てられます。
+
 ## 使い方
 
 ```bash

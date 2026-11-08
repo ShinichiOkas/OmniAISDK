@@ -1,7 +1,7 @@
 ---
 sprint_id: 8ae92190-c6db-4452-a1c7-dc08fba812dd
-version: 2
-status: executing
+version: 3
+status: reviewing
 created_at: 2026-11-08T09:00:00+09:00
 updated_at: 2026-11-08T09:00:00+09:00
 domain_tags: [python-sdk, install, configuration, cli]
@@ -55,6 +55,10 @@ change_count_improvement: 0
 | I-07 | doctor は「設定が使うもの」が無ければ失敗、使わないものは「-」（スキップ）で示す | 不要な警告で埋めない |
 | I-08 | モデルの削除は共有 blobs の .refs を見て、自分だけが参照する blob だけを消す | 他のモデルを壊さない（手作業で確かめた手順を実装） |
 | I-09 | pull の前にサイズを表示して確認（--yes で省略） | 師匠の決定「実行前に内容と容量を表示して確認」 |
+| I-10 | メニューの文言は日本語、doctor などのコマンドの出力は英語 | メニューは師匠が使う案内、コマンドの出力はログや CI でも読まれる |
+| I-11 | extras の導入は pip、無ければ uv（uv で作った仮想環境には pip が無い） | 実測（開発環境は uv） |
+| I-12 | Ollama のモデルは /api/show の capabilities で用途ごとに絞って並べる | 実際に操作して、Chat に埋め込みモデルが並ぶ問題を見つけた |
+| I-13 | dump_toml は models だけインライン表、ほかは [テーブル] | 実際の出力が読みにくかった |
 | I-06 | MCP は from_config で組み立てない | 接続の開閉が非同期でサーバーごと |
 
 
@@ -62,3 +66,4 @@ change_count_improvement: 0
 
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 未決事項を決定、実行へ
+- v3 [2026-11-08]: 3 段とも実装。メニュー → doctor → from_config を実物で確認

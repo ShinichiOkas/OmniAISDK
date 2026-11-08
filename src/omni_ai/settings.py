@@ -173,8 +173,8 @@ def dump_toml(data: dict[str, Any]) -> str:
     lines: list[str] = []
 
     def emit(table: dict[str, Any], prefix: str) -> None:
-        scalars = {k: v for k, v in table.items() if not (isinstance(v, dict) and _is_table(v))}
-        tables = {k: v for k, v in table.items() if isinstance(v, dict) and _is_table(v)}
+        scalars = {k: v for k, v in table.items() if not (isinstance(v, dict) and _is_table(v, k))}
+        tables = {k: v for k, v in table.items() if isinstance(v, dict) and _is_table(v, k)}
         if prefix and (scalars or not table):  # 空のテーブルも見出しは書く（捨てると誤字のキーが消える）
             lines.append(f"[{prefix}]")
         for k, v in scalars.items():
@@ -190,9 +190,12 @@ def dump_toml(data: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _is_table(v: dict[str, Any]) -> bool:
-    # テーブルを含む・3 個以上の値を持つ辞書はテーブルとして書く（models のような小さい対応表はインライン）
-    return any(isinstance(x, dict) for x in v.values()) or len(v) > 2 or not v
+# インライン表にする対応表のキー（それ以外の辞書は [テーブル] として書く）
+_INLINE_KEYS = {"models"}
+
+
+def _is_table(v: dict[str, Any], key: str = "") -> bool:
+    return key not in _INLINE_KEYS or any(isinstance(x, dict) for x in v.values())
 
 
 def _atomic_write(path: Path, text: str, *, private: bool) -> None:

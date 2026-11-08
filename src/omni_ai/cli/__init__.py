@@ -21,15 +21,32 @@ _MARK = {"ok": "✓", "warn": "!", "fail": "✗", "skip": "-"}
 class IO:
     """入出力（テストで差し替える）。"""
 
-    def __init__(self, out: TextIO | None = None, ask: Callable[[str], str] | None = None) -> None:
+    def __init__(
+        self,
+        out: TextIO | None = None,
+        ask: Callable[[str], str] | None = None,
+        secret: Callable[[str], str] | None = None,
+    ) -> None:
         self.out = out or sys.stdout
         self._ask = ask or input
+        # 秘密の入力は画面に出さない（テストでは ask と同じものを使う）
+        if secret is not None:
+            self._secret = secret
+        elif ask is not None:
+            self._secret = ask
+        else:
+            import getpass
+
+            self._secret = getpass.getpass
 
     def print(self, *parts: object) -> None:
         print(*parts, file=self.out)
 
     def ask(self, prompt: str) -> str:
         return self._ask(prompt)
+
+    def secret(self, prompt: str) -> str:
+        return self._secret(prompt)
 
     def confirm(self, prompt: str, *, yes: bool = False) -> bool:
         if yes:

@@ -987,3 +987,21 @@ Ollama:
 - Docker Desktop が Windows コンテナのモードだと動かない（Linux のイメージを使うため）
 - 実 API・実物の live テストは、Mac 以外では Docker の Sandbox（Linux CI）しか流していない
 
+---
+
+## 24. インストールとコンフィグレーション（2026-11-08）
+
+師匠の指示: 「インストールとコンフィグレーションの整備」（手順と前提の確認・設定ファイルからの組み立て・設定の一覧と検証・モデルの管理・それらを案内するメニュー方式のインストーラ）。決定: 入口は `omni-ai` コマンド＋メニュー、API キーは別の秘密ファイル、自動導入は Python 側だけ。
+
+| 部品 | 内容 |
+| :--- | :--- |
+| `omni_ai.settings` | `config.toml`（共有可）と `secrets.toml`（権限 600）。OS 標準の場所（`OMNI_CONFIG_DIR` で変更可）。`[client.<機能>]` の厳密なスキーマ（未知のキーは誤り）と、場所つきの検証。原子的な書き込み。TOML の書き出しは自前（`models` だけインライン表） |
+| `omni_ai.config` | 解決の順に `secrets.toml` を追加（引数 → OMNI_* → 各社の環境変数 → secrets.toml → config.toml） |
+| `omni_ai.builder` / `OmniClient.from_config()` | 設定から chat（フォールバックの順）・embedding・rerank・search・doc_parser・judge・audio・sandbox を組み立てる。誤りは `ConfigurationError`。MCP は対象外 |
+| `omni-ai doctor` | Python・設定（権限・検証）・extras・Gemini のキー・Ollama（到達・判定に必要な版・設定が使うモデル）・Docker（CLI・デーモン・イメージ）。設定が使うものだけを失敗にする |
+| `omni-ai models` | 一覧・容量の確認・取得・削除。取得の前に容量を表示して確認。共有 blobs は `.refs` を見て、自分だけが参照するものだけを消す |
+| `omni-ai`（メニュー） | 診断・プロバイダー（キーは getpass で入力）・機能の構成（Ollama のモデルは capabilities で用途に合うものだけを並べる）・extras の導入（pip、無ければ uv）・モデル・設定の確認 |
+| 手順書 | `docs/install.md` |
+
+**実測（2026-11-08・Mac）**: メニューで chat（Ollama / gemma4:31b-cloud）・judge（tev1:0.8b）・embedding（Ollama / nomic-embed-text）を設定 → `omni-ai doctor` がすべて ✓ → `OmniClient.from_config()` で 3 機能が実物で動いた。メニューで Chat のモデルに埋め込みモデルまで並んでいた問題を、実際に操作して見つけて直した。
+
