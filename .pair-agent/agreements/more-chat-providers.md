@@ -1,9 +1,10 @@
 ---
 sprint_id: 60b6b46e-2f01-4aab-ba10-cc208e05a903
-version: 2
-status: reviewing
+version: 3
+status: done
 created_at: 2026-11-08T15:30:00+09:00
-updated_at: 2026-11-08T15:30:00+09:00
+updated_at: 2026-11-08T16:00:00+09:00
+closed_at: 2026-11-08T16:00:00+09:00
 domain_tags: [python-sdk, chat, providers, openai-compatible]
 change_count_premise: 0
 change_count_improvement: 0
@@ -62,6 +63,7 @@ change_count_improvement: 0
 
 - v1 [2026-11-08T15:30+09:00]: 初版（調査と師匠の回答を反映）
 - v2 [2026-11-08]: 実装・契約テスト・ドキュメント。openai-compatible をローカル Ollama の /v1 で実物確認
+- v3 [2026-11-08T16:00+09:00]: 検収完了・クローズ（クラウド 4 件は API キー未保有のため未確認で残置）
 
 ## おまかせで判断したこと（事後報告）
 

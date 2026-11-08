@@ -1,7 +1,5 @@
 {
-  "sprint_id": "60b6b46e-2f01-4aab-ba10-cc208e05a903",
-  "status": "reviewing",
-  "goal": "Mnemo の ELLM 以外のプロバイダーに Chat で対応",
-  "created_at": "2026-11-08T15:30:00+09:00",
-  "agreement_path": ".pair-agent/agreements/more-chat-providers.md"
+  "status": "idle",
+  "last_sprint_id": "60b6b46e-2f01-4aab-ba10-cc208e05a903",
+  "last_closed_at": "2026-11-08T16:00:00+09:00"
 }
