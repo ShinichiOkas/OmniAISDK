@@ -28,28 +28,45 @@ class ConfigurationError(OmniError):
 
 
 def _base_url(cfg: OmniConfig, provider: str) -> str | None:
-    conn = getattr(cfg, provider, None)
+    conn = cfg.connection(provider)
     return getattr(conn, "base_url", None) if conn else None
+
+
+def _chat_adapter(cfg: OmniConfig, name: str, model: str | None) -> ChatCapability:
+    """Chat プロバイダー名 → アダプター（キーは各アダプターが secrets.toml・環境変数から解決する）。"""
+    kw: dict[str, Any] = {"base_url": _base_url(cfg, name)}
+    if model:
+        kw["default_model"] = model
+    if name == "gemini":
+        from .providers.gemini import GeminiChatAdapter
+
+        return GeminiChatAdapter(**kw)
+    if name == "ollama":
+        from .providers.ollama import OllamaChatAdapter
+
+        return OllamaChatAdapter(**kw)
+    if name == "ollama-cloud":
+        from .providers.ollama import OllamaCloudChatAdapter
+
+        return OllamaCloudChatAdapter(**kw)
+    from .providers import openai_compatible as oc
+
+    classes: dict[str, type[oc.OpenAICompatibleChatAdapter]] = {
+        "xai": oc.XAIChatAdapter,
+        "agnes": oc.AgnesChatAdapter,
+        "openrouter": oc.OpenRouterChatAdapter,
+        "openai-compatible": oc.OpenAICompatibleChatAdapter,
+    }
+    if name not in classes:  # 設定の検証を通っていれば来ない
+        raise ValueError(f"unknown chat provider: {name}")
+    return classes[name](**kw)
 
 
 def _chat(cfg: OmniConfig) -> ChatCapability | None:
     sec = cfg.client.chat
     if sec is None:
         return None
-    adapters: list[ChatCapability] = []
-    for name in sec.providers:
-        model = sec.models.get(name)
-        if name == "gemini":
-            from .providers.gemini import GeminiChatAdapter
-
-            kw: dict[str, Any] = {"base_url": _base_url(cfg, "gemini")}
-            if model:
-                kw["default_model"] = model
-            adapters.append(GeminiChatAdapter(**kw))
-        else:
-            from .providers.ollama import OllamaChatAdapter
-
-            adapters.append(OllamaChatAdapter(default_model=model, base_url=_base_url(cfg, "ollama")))
+    adapters = [_chat_adapter(cfg, name, sec.models.get(name)) for name in sec.providers]
     if len(adapters) == 1:
         return adapters[0]
     from .router import FallbackChatAdapter

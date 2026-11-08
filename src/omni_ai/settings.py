@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import tempfile
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -20,7 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .compat import PlatformCompat
 
 __all__ = [
+    "CHAT_PROVIDERS",
+    "ApiConnection",
     "AudioSection",
+    "ChatProviderInfo",
     "ChatSection",
     "ClientSection",
     "ConfigIssue",
@@ -37,7 +41,34 @@ __all__ = [
     "validate_files",
 ]
 
-ChatProvider = Literal["gemini", "ollama"]
+ChatProvider = Literal["gemini", "ollama", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible"]
+
+
+@dataclass(frozen=True)
+class ChatProviderInfo:
+    """Chat プロバイダーの設定上の性質（検証・メニュー・doctor が共通に使う）。"""
+
+    label: str
+    key_env: tuple[str, ...] = ()  # 各社の標準の環境変数（OMNI_<P>_API_KEY は常に読む）
+    key_required: bool = False
+    needs_model: bool = True  # 既定のモデルを持たない
+    needs_base_url: bool = False  # 既定の接続先を持たない
+    model_example: str = ""
+
+
+CHAT_PROVIDERS: dict[str, ChatProviderInfo] = {
+    "gemini": ChatProviderInfo("Gemini", ("GEMINI_API_KEY", "GOOGLE_API_KEY"), True, False),
+    "ollama": ChatProviderInfo("Ollama（ローカル）", model_example="gemma4:31b-cloud"),
+    "ollama-cloud": ChatProviderInfo("Ollama Cloud", ("OLLAMA_API_KEY",), True, model_example="gpt-oss:120b"),
+    "xai": ChatProviderInfo("xAI（Grok）", ("XAI_API_KEY",), True, model_example="grok-4"),
+    "agnes": ChatProviderInfo("Agnes AI", ("AGNES_API_KEY",), True, model_example="agnes-2.5-flash"),
+    "openrouter": ChatProviderInfo(
+        "OpenRouter", ("OPENROUTER_API_KEY",), True, model_example="openai/gpt-4o-mini"
+    ),
+    "openai-compatible": ChatProviderInfo(
+        "OpenAI 互換サーバー（llama.cpp など）", needs_base_url=True, model_example="local-model"
+    ),
+}
 
 
 class _Strict(BaseModel):
@@ -51,6 +82,13 @@ class GeminiConnection(_Strict):
 
 class OllamaConnection(_Strict):
     base_url: str | None = None
+
+
+class ApiConnection(_Strict):
+    """接続先とキー（キーは secrets.toml に置く。config.toml にあれば validate で警告）。"""
+
+    base_url: str | None = None
+    api_key: str | None = None
 
 
 class ChatSection(_Strict):
@@ -114,6 +152,16 @@ class ClientSection(_Strict):
 class OmniConfig(_Strict):
     gemini: GeminiConnection | None = None
     ollama: OllamaConnection | None = None
+    ollama_cloud: ApiConnection | None = Field(default=None, alias="ollama-cloud")
+    xai: ApiConnection | None = None
+    agnes: ApiConnection | None = None
+    openrouter: ApiConnection | None = None
+    openai_compatible: ApiConnection | None = Field(default=None, alias="openai-compatible")
+
+    def connection(self, provider: str) -> Any:
+        """プロバイダー名（"ollama-cloud" など）→ 接続設定。"""
+        return getattr(self, provider.replace("-", "_"), None)
+
     client: ClientSection = Field(default_factory=ClientSection)
 
 
@@ -254,14 +302,16 @@ def parse_config(
     except ValidationError as exc:
         return None, _issues_from_validation(exc, file)
     issues: list[ConfigIssue] = []
-    if cfg.gemini and cfg.gemini.api_key:
-        issues.append(
-            ConfigIssue(
-                "warning",
-                f"{file}:gemini.api_key",
-                "API keys belong in secrets.toml (config.toml may be shared)",
+    for name in CHAT_PROVIDERS:
+        conn = cfg.connection(name)
+        if conn is not None and getattr(conn, "api_key", None):
+            issues.append(
+                ConfigIssue(
+                    "warning",
+                    f"{file}:{name}.api_key",
+                    "API keys belong in secrets.toml (config.toml may be shared)",
+                )
             )
-        )
     chat = cfg.client.chat
     if chat:
         for name in chat.models:
@@ -273,12 +323,19 @@ def parse_config(
                         f"model given for {name!r}, which is not in providers",
                     )
                 )
-        if "ollama" in chat.providers and "ollama" not in chat.models:
-            issues.append(
-                ConfigIssue(
-                    "error", f"{file}:client.chat.models", "ollama has no default model; set models.ollama"
+        for name in chat.providers:
+            info = CHAT_PROVIDERS[name]
+            if info.needs_model and name not in chat.models:
+                example = f" (e.g. {info.model_example})" if info.model_example else ""
+                issues.append(
+                    ConfigIssue(
+                        "error",
+                        f"{file}:client.chat.models",
+                        f"{name} has no default model; set models.{_key(name)}{example}",
+                    )
                 )
-            )
+        if len(set(chat.providers)) != len(chat.providers):
+            issues.append(ConfigIssue("error", f"{file}:client.chat.providers", "duplicate provider"))
     emb = cfg.client.embedding
     if emb and emb.provider == "ollama" and not emb.model:
         issues.append(
@@ -308,19 +365,39 @@ def validate_files(
         return None, [ConfigIssue("error", str(sec_path), f"invalid TOML: {exc}")]
     cfg, cfg_issues = parse_config(raw)
     issues.extend(cfg_issues)
-    known_secret_sections = {"gemini"}
     for section in secrets:
-        if section not in known_secret_sections:
+        if section not in CHAT_PROVIDERS:
             issues.append(ConfigIssue("warning", f"secrets.toml:{section}", "unknown section"))
-    if cfg and cfg.client.chat and "gemini" in cfg.client.chat.providers:
-        from .config import resolve_setting
-
-        if not resolve_setting("gemini", "api_key").value:
-            issues.append(
-                ConfigIssue(
-                    "error",
-                    "gemini.api_key",
-                    "no API key (secrets.toml, GEMINI_API_KEY or OMNI_GEMINI_API_KEY)",
-                )
-            )
+    if cfg and cfg.client.chat:
+        issues.extend(_connection_issues(cfg, cfg.client.chat.providers, secrets))
     return cfg, issues
+
+
+def _connection_issues(
+    cfg: OmniConfig, providers: Sequence[str], secrets: dict[str, Any]
+) -> list[ConfigIssue]:
+    """Chat に並べたプロバイダーのキー・接続先が揃っているか。"""
+    from .config import resolve_setting
+
+    out: list[ConfigIssue] = []
+    for name in providers:
+        info = CHAT_PROVIDERS[name]
+        env = name.upper().replace("-", "_")
+        if info.key_required:
+            sec = secrets.get(name)
+            in_file = isinstance(sec, dict) and sec.get("api_key")
+            conn = cfg.connection(name)
+            if not (in_file or (conn and conn.api_key) or resolve_setting(name, "api_key", config={}).value):
+                where = ", ".join(("secrets.toml", *info.key_env, f"OMNI_{env}_API_KEY"))
+                out.append(ConfigIssue("error", f"{name}.api_key", f"no API key ({where})"))
+        if info.needs_base_url:
+            conn = cfg.connection(name)
+            if not ((conn and conn.base_url) or os.environ.get(f"OMNI_{env}_BASE_URL")):
+                out.append(
+                    ConfigIssue(
+                        "error",
+                        f"config.toml:{name}.base_url",
+                        "no base_url (e.g. http://127.0.0.1:8080; there is no default)",
+                    )
+                )
+    return out

@@ -63,7 +63,7 @@ OmniAI SDK は、以下のような機能領域を横断的に扱える設計を
 
 ```text
 OmniAISDK/
-├── src/omni_ai/            # SDK 本体（コア＋Chat: Gemini / Ollama）
+├── src/omni_ai/            # SDK 本体（コア＋各機能のアダプター）
 ├── tests/                  # unit / contract / live（live は環境変数で有効化）
 ├── docs/
 │   ├── マルチプロバイダ統合Python SDK (OmniAI SDK) 設計仕様書.md   # 仕様書 v3.1
@@ -83,6 +83,7 @@ OmniAISDK/
 | コア（例外・型・設定・OS差分吸収・HTTP 基盤・再試行・ルーター・テレメトリ・ToolRunner） | 実装済み |
 | Chat: Ollama（ネイティブ `/api/chat`） | 実装済み・実 API で確認済み（`gemma4:31b-cloud`） |
 | Chat: Google Gemini（`generateContent` v1beta） | 実装済み・実 API で確認済み（`gemini-3.1-flash-lite`。google_search は quota の都合で未確認） |
+| Chat: xAI / Agnes / OpenRouter / OpenAI 互換サーバー（`/chat/completions`）・Ollama Cloud（ネイティブ） | 実装済み・**偽物のテストのみ**（実物には未接続。実装設計書 §25） |
 | Embedding: Gemini / Ollama / fastembed（プロセス内・ONNX） | 実装済み・3 つとも実物で確認済み |
 | Search: ddgs（キー不要の横断検索） | 実装済み・実物で確認済み（Ollama の WEB_SEARCH 代行も end-to-end で確認） |
 | Rerank: fastembed（プロセス内・多言語クロスエンコーダー） | 実装済み・実物で確認済み（キー不要の RAG: 検索 → 埋め込み → 再順位付け） |

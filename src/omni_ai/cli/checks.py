@@ -189,6 +189,57 @@ def check_gemini(cfg: OmniConfig | None) -> list[Check]:
     ]
 
 
+def check_chat_providers(cfg: OmniConfig | None, client: httpx.Client | None = None) -> list[Check]:
+    """Chat に並べた、Gemini・Ollama 以外のプロバイダーのキーと接続先。"""
+    from ..config import resolve_setting
+    from ..settings import CHAT_PROVIDERS
+
+    if not (cfg and cfg.client.chat):
+        return []
+    out: list[Check] = []
+    for name in cfg.client.chat.providers:
+        if name in ("gemini", "ollama"):
+            continue  # check_gemini / check_ollama が見る
+        info = CHAT_PROVIDERS[name]
+        key = resolve_setting(name, "api_key")
+        if info.key_required:
+            env = info.key_env[0] if info.key_env else f"OMNI_{name.upper().replace('-', '_')}_API_KEY"
+            out.append(
+                Check(f"{name} api key", "ok", f"found ({key.source})")
+                if key.value
+                else Check(
+                    f"{name} api key",
+                    "fail",
+                    "not set",
+                    f"omni-ai setup (saved to secrets.toml) or set {env}",
+                )
+            )
+        if name == "openai-compatible":
+            out.append(_check_openai_compatible(cfg, key.value, client))
+    return out
+
+
+def _check_openai_compatible(cfg: OmniConfig, key: str | None, client: httpx.Client | None) -> Check:
+    from ..config import resolve_setting
+    from ..providers.openai_compatible import normalize_base_url
+
+    conn = cfg.connection("openai-compatible")
+    url = resolve_setting("openai-compatible", "base_url", conn.base_url if conn else None).value
+    if not url:
+        return Check(
+            "openai-compatible", "fail", "no base_url", "set [openai-compatible] base_url in config.toml"
+        )
+    base = normalize_base_url(url)
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    try:
+        r = (client or httpx).get(f"{base}/models", headers=headers, timeout=10)
+        r.raise_for_status()
+        n = len(r.json().get("data") or [])
+    except (httpx.HTTPError, ValueError, AttributeError) as exc:
+        return Check("openai-compatible", "fail", f"{base}: {exc}", "start the server (e.g. llama-server)")
+    return Check("openai-compatible", "ok", f"{base} ({n} model(s))")
+
+
 def check_docker(cfg: OmniConfig | None, runner: Callable[..., Any] = subprocess.run) -> list[Check]:
     used = bool(cfg and cfg.client.sandbox)
     try:
@@ -249,5 +300,6 @@ def run_checks() -> list[Check]:
     checks += check_extras()
     checks += check_gemini(cfg)
     checks += check_ollama(cfg)
+    checks += check_chat_providers(cfg)
     checks += check_docker(cfg)
     return checks

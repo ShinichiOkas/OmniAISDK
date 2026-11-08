@@ -1,4 +1,4 @@
-"""OllamaChatAdapter（ネイティブ /api/chat）。"""
+"""OllamaChatAdapter（ネイティブ /api/chat）と OllamaCloudChatAdapter（ollama.com の同じ API）。"""
 
 from __future__ import annotations
 
@@ -11,12 +11,18 @@ import httpx
 from ..._http import RetryPolicy
 from ...compat import PlatformCompat
 from ...config import resolve_setting
-from ...exceptions import OmniError, ProviderConnectionError, ProviderTimeoutError, UnsupportedFeatureError
+from ...exceptions import (
+    AuthenticationError,
+    OmniError,
+    ProviderConnectionError,
+    ProviderTimeoutError,
+    UnsupportedFeatureError,
+)
 from ...types import BuiltinTool, ChatResponse
 from .._base import BaseChatAdapter, ChatRequest, StreamState
 from . import codec
 
-__all__ = ["OllamaChatAdapter"]
+__all__ = ["OLLAMA_CLOUD_BASE_URL", "OllamaChatAdapter", "OllamaCloudChatAdapter"]
 
 logger = logging.getLogger("omni_ai")
 
@@ -73,18 +79,18 @@ class OllamaChatAdapter(BaseChatAdapter):
         return "/api/chat"
 
     def _build_body(self, req: ChatRequest, *, stream: bool) -> dict[str, Any]:
-        return codec.build_chat_body(req, stream=stream)
+        return codec.build_chat_body(req, stream=stream, provider=self.provider_name)
 
     def _parse_body(self, data: Any, req: ChatRequest) -> ChatResponse:
-        return codec.parse_chat_response(data, req)
+        return codec.parse_chat_response(data, req, self.provider_name)
 
     def _new_stream_state(self, req: ChatRequest) -> StreamState:
-        return codec.OllamaStreamState(req)
+        return codec.OllamaStreamState(req, self.provider_name)
 
     def _map_error(
         self, status: int, body: bytes, headers: Mapping[str, str], model: str | None
     ) -> OmniError:
-        return codec.map_error(status, body, headers, model)
+        return codec.map_error(status, body, headers, model, provider=self.provider_name)
 
     # ------------------------------------------------------------------ 能力確認 (/api/show)
 
@@ -163,3 +169,51 @@ class OllamaChatAdapter(BaseChatAdapter):
                 )
             self._capabilities[req.model] = self._caps_from_show(result.json())
         self._check(req, self._capabilities[req.model])
+
+
+OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
+
+
+class OllamaCloudChatAdapter(OllamaChatAdapter):
+    """Ollama Cloud（https://ollama.com）のネイティブ /api/chat。API キーが必須。
+
+    ローカルの Ollama とは別のプロバイダーとして扱う（無料扱いにしない・キーの出所が違う）。
+    能力確認（/api/show）は既定で行わない（ローカルの Ollama にしか無い前提で作った確認のため）。
+    """
+
+    provider_name: ClassVar[str] = "ollama-cloud"
+
+    def __init__(
+        self,
+        *,
+        default_model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        check_capabilities: bool = False,
+        retry: RetryPolicy | None = None,
+        timeout: httpx.Timeout | float | None = None,
+        http_client: httpx.Client | None = None,
+        async_http_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        key = resolve_setting("ollama-cloud", "api_key", api_key).value
+        if not key:
+            raise AuthenticationError(
+                "Ollama Cloud API key not found (api_key=, OMNI_OLLAMA_CLOUD_API_KEY, OLLAMA_API_KEY "
+                "or [ollama-cloud] api_key in secrets.toml)",
+                provider=self.provider_name,
+            )
+        url = resolve_setting("ollama-cloud", "base_url", base_url, default=OLLAMA_CLOUD_BASE_URL).value
+        # 親の __init__ は ollama の設定（OLLAMA_HOST など）を読むので、確定した URL を渡す
+        super().__init__(
+            default_model=default_model,
+            base_url=(url or OLLAMA_CLOUD_BASE_URL).rstrip("/"),
+            api_key=key,
+            check_capabilities=check_capabilities,
+            retry=retry,
+            timeout=timeout,
+            http_client=http_client,
+            async_http_client=async_http_client,
+        )
+
+    def _switch_to_container_host(self, exc: ProviderConnectionError) -> bool:
+        return False  # クラウドに host.docker.internal は無い

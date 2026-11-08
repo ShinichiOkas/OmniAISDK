@@ -23,6 +23,10 @@ ConfigSource = Literal[
 PROVIDER_ENV_VARS: dict[tuple[str, str], tuple[str, ...]] = {
     ("gemini", "api_key"): ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     ("ollama", "base_url"): ("OLLAMA_HOST",),
+    ("ollama-cloud", "api_key"): ("OLLAMA_API_KEY",),
+    ("xai", "api_key"): ("XAI_API_KEY",),
+    ("agnes", "api_key"): ("AGNES_API_KEY",),
+    ("openrouter", "api_key"): ("OPENROUTER_API_KEY",),
 }
 
 _SECRET_KEYS = {"api_key", "token", "secret"}
@@ -69,7 +73,8 @@ def resolve_setting(
     name = f"{provider}.{key}"
     if explicit:
         return ResolvedSetting(explicit, "argument", name)
-    omni_var = f"OMNI_{provider.upper()}_{key.upper()}"
+    # "ollama-cloud" → OMNI_OLLAMA_CLOUD_API_KEY（環境変数名にハイフンは使えない）
+    omni_var = f"OMNI_{provider.upper().replace('-', '_')}_{key.upper()}"
     if env.get(omni_var):
         return ResolvedSetting(env[omni_var], "omni_env", name)
     for var in PROVIDER_ENV_VARS.get((provider, key), ()):

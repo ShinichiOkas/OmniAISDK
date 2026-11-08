@@ -18,9 +18,15 @@ if TYPE_CHECKING:
     from .gemini.embedding import GeminiEmbeddingAdapter
     from .markitdown import MarkItDownDocumentParser
     from .mcp import MCPClientAdapter
-    from .ollama import OllamaChatAdapter
+    from .ollama import OllamaChatAdapter, OllamaCloudChatAdapter
     from .ollama.embedding import OllamaEmbeddingAdapter
     from .ollama.judge import OllamaJudgeAdapter
+    from .openai_compatible import (
+        AgnesChatAdapter,
+        OpenAICompatibleChatAdapter,
+        OpenRouterChatAdapter,
+        XAIChatAdapter,
+    )
     from .pypdf import PyPDFDocumentParser
 
 _LAZY = {
@@ -38,11 +44,17 @@ _LAZY = {
     "FastEmbedEmbeddingAdapter": ".fastembed",
     "FastEmbedRerankAdapter": ".fastembed.rerank",
     "OllamaChatAdapter": ".ollama",
+    "OllamaCloudChatAdapter": ".ollama",
+    "OpenAICompatibleChatAdapter": ".openai_compatible",
+    "XAIChatAdapter": ".openai_compatible",
+    "AgnesChatAdapter": ".openai_compatible",
+    "OpenRouterChatAdapter": ".openai_compatible",
     "OllamaEmbeddingAdapter": ".ollama.embedding",
     "OllamaJudgeAdapter": ".ollama.judge",
 }
 
 __all__ = [
+    "AgnesChatAdapter",
     "AudioRouter",
     "DDGSSearchAdapter",
     "DockerSandboxAdapter",
@@ -56,9 +68,13 @@ __all__ = [
     "MarkItDownDocumentParser",
     "MimeRoutingDocumentParser",
     "OllamaChatAdapter",
+    "OllamaCloudChatAdapter",
     "OllamaEmbeddingAdapter",
     "OllamaJudgeAdapter",
+    "OpenAICompatibleChatAdapter",
+    "OpenRouterChatAdapter",
     "PyPDFDocumentParser",
+    "XAIChatAdapter",
     "default_document_parser",
 ]
 

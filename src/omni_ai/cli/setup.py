@@ -15,7 +15,7 @@ import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from ..settings import load_config, load_secrets, save_config, save_secrets, validate_files
+from ..settings import CHAT_PROVIDERS, load_config, load_secrets, save_config, save_secrets, validate_files
 
 if TYPE_CHECKING:
     from . import IO
@@ -67,28 +67,95 @@ def _save_and_validate(io: IO, raw: dict[str, Any]) -> None:
 # ----------------------------------------------------------------------------- 各メニュー
 
 
+# 鍵を入れるプロバイダー（メニューの並び順。Gemini を先頭に固定）
+_KEY_PROVIDERS = ["gemini", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible"]
+
+
+def _save_key(io: IO, name: str) -> None:
+    label = CHAT_PROVIDERS[name].label
+    key = io.secret(f"{label} の API キー（入力は表示されません。空なら取りやめ） > ").strip()
+    if not key:
+        io.print("取りやめました")
+        return
+    secrets = load_secrets()
+    secrets.setdefault(name, {})["api_key"] = key
+    path = save_secrets(secrets)
+    io.print(f"保存しました（本人だけが読めるファイル）: {path}")
+
+
 def menu_providers(io: IO) -> None:
-    choice = _choose(io, "プロバイダーの設定", ["Gemini の API キー", "Ollama の接続先"])
+    keyed = [n for n in _KEY_PROVIDERS if n != "gemini"]
+    options = ["Gemini の API キー", "Ollama の接続先"]
+    options += [f"{CHAT_PROVIDERS[n].label} の API キー" for n in keyed]
+    options += ["OpenAI 互換サーバーの接続先"]
+    choice = _choose(io, "プロバイダーの設定", options)
     if choice is None:
         return
-    if choice.startswith("Gemini"):
-        key = io.secret("Gemini の API キー（入力は表示されません。空なら取りやめ） > ").strip()
-        if not key:
+    index = options.index(choice)
+    if index == 0:
+        _save_key(io, "gemini")
+        return
+    if 2 <= index < 2 + len(keyed):
+        _save_key(io, keyed[index - 2])
+        return
+    raw = load_config()
+    if choice.startswith("OpenAI"):
+        current = (raw.get("openai-compatible") or {}).get("base_url", "")
+        url = (
+            io.ask(f"OpenAI 互換サーバーの URL（例: http://127.0.0.1:8080） [{current}] > ").strip()
+            or current
+        )
+        if not url:
             io.print("取りやめました")
             return
-        secrets = load_secrets()
-        secrets.setdefault("gemini", {})["api_key"] = key
-        path = save_secrets(secrets)
-        io.print(f"保存しました（本人だけが読めるファイル）: {path}")
+        raw.setdefault("openai-compatible", {})["base_url"] = url
+        _save_and_validate(io, raw)
         return
     from ..compat import PlatformCompat
 
     current = PlatformCompat.resolve_ollama_base_url()
     url = io.ask(f"Ollama の接続先 [{current}] > ").strip() or current
-    raw = load_config()
     raw.setdefault("ollama", {})["base_url"] = url
     _save_and_validate(io, raw)
     io.print(f"Ollama が入っていなければ: {OLLAMA_INSTALL}")
+
+
+def _remote_chat_models(name: str) -> list[str]:
+    """クラウド・OpenAI 互換サーバーのモデル一覧（取れなければ空。多すぎるときも空＝手入力）。"""
+    import httpx
+
+    from ..config import resolve_setting
+
+    key = resolve_setting(name, "api_key").value
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    try:
+        if name == "ollama-cloud":
+            from ..providers.ollama import OLLAMA_CLOUD_BASE_URL
+
+            base = (
+                resolve_setting(name, "base_url", default=OLLAMA_CLOUD_BASE_URL).value
+                or OLLAMA_CLOUD_BASE_URL
+            )
+            data = httpx.get(f"{base.rstrip('/')}/api/tags", headers=headers, timeout=10).json()
+            names = [m.get("name", "") for m in data.get("models") or []]
+        else:
+            from ..providers import openai_compatible as oc
+
+            default = {
+                "xai": oc.XAIChatAdapter.default_base_url,
+                "agnes": oc.AgnesChatAdapter.default_base_url,
+                "openrouter": oc.OpenRouterChatAdapter.default_base_url,
+            }.get(name)
+            url = resolve_setting(name, "base_url", default=default).value
+            if not url:
+                return []
+            base = oc.normalize_base_url(url) if name == "openai-compatible" else url.rstrip("/")
+            data = httpx.get(f"{base}/models", headers=headers, timeout=10).json()
+            names = [m.get("id", "") for m in data.get("data") or []]
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return []
+    names = sorted(n for n in names if n)
+    return names if len(names) <= 30 else []
 
 
 def _ollama_model_names(capability: str | None = None) -> list[str]:
@@ -115,34 +182,34 @@ def _ollama_model_names(capability: str | None = None) -> list[str]:
     return out
 
 
+def _ask_chat_model(io: IO, name: str) -> str:
+    info = CHAT_PROVIDERS[name]
+    if name == "gemini":
+        return io.ask("Gemini のモデル [gemini-3.1-flash-lite] > ").strip()
+    names = _ollama_model_names("completion") if name == "ollama" else _remote_chat_models(name)
+    if names:
+        return _choose(io, f"{info.label} のモデル（対話できるもの）", names, allow_skip=False) or ""
+    return io.ask(f"{info.label} のモデル名（例: {info.model_example}） > ").strip()
+
+
 def menu_chat(io: IO) -> None:
     raw = load_config()
     order: list[str] = []
     models: dict[str, str] = {}
     while True:
-        remaining = [p for p in ("gemini", "ollama") if p not in order]
+        remaining = [p for p in CHAT_PROVIDERS if p not in order]
         if not remaining:
             break
         pick = _choose(
             io,
-            f"Chat のプロバイダー（{len(order) + 1} 番目。先に選んだものから使い、失敗したら次へ）",
+            f"Chat のプロバイダー（{len(order) + 1} 番目。先に選んだものから使い、失敗したら次へ。0 で決定）",
             remaining,
         )
         if pick is None:
             break
         order.append(pick)
-        if pick == "ollama":
-            names = _ollama_model_names("completion")
-            if names:
-                m = _choose(io, "Ollama のモデル（対話できるもの）", names, allow_skip=False)
-            else:
-                m = io.ask("Ollama のモデル名（例: gemma4:31b-cloud） > ").strip()
-            if m:
-                models["ollama"] = m
-        else:
-            m = io.ask("Gemini のモデル [gemini-3.1-flash-lite] > ").strip()
-            if m:
-                models["gemini"] = m
+        if m := _ask_chat_model(io, pick):
+            models[pick] = m
     if not order:
         io.print("変更しませんでした")
         return

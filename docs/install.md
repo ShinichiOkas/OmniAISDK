@@ -32,6 +32,8 @@ SDK は Python 側のものだけを入れます。次のものは、必要に�
 | [Ollama](https://ollama.com/download) | Ollama の Chat・埋め込み・判定 | 判定（decision モデル）は **0.35.0 以上** |
 | [Docker](https://docs.docker.com/get-started/get-docker/) | コード実行（Sandbox） | Docker Desktop は **Linux コンテナのモード**。Linux では利用者を `docker` グループに入れる |
 | Gemini の API キー | Gemini の Chat・埋め込み | [Google AI Studio](https://aistudio.google.com/) で発行 |
+| xAI / Agnes / OpenRouter / Ollama Cloud の API キー | それぞれの Chat | 各社の画面で発行（環境変数は `XAI_API_KEY` / `AGNES_API_KEY` / `OPENROUTER_API_KEY` / `OLLAMA_API_KEY`） |
+| OpenAI 互換サーバー（llama.cpp の `llama-server` など） | `openai-compatible` の Chat | 自分で起動しておく。接続先の URL は必須（既定値なし）、キーは任意 |
 
 ## 3. 設定ファイル
 
@@ -74,13 +76,28 @@ whisper_model = "medium"
 provider = "docker"
 ```
 
+Chat のプロバイダーは `gemini` / `ollama` / `ollama-cloud` / `xai` / `agnes` / `openrouter` / `openai-compatible` から選べます。Gemini 以外は既定のモデルが無いので、`models` に書いてください。
+
+```toml
+# config.toml（Chat をクラウドと手元のサーバーで組む例）
+[openai-compatible]
+base_url = "http://127.0.0.1:8080"        # /v1 は付けても付けなくてもよい
+
+[client.chat]
+providers = ["openrouter", "xai", "openai-compatible"]
+models = { openrouter = "openai/gpt-4o-mini", xai = "grok-4", openai-compatible = "local" }
+```
+
 ```toml
 # secrets.toml（共有しない）
 [gemini]
 api_key = "..."
+
+[openrouter]
+api_key = "..."
 ```
 
-API キーや接続先は、次の順で探します: 引数 → `OMNI_<PROVIDER>_<KEY>` → 各社の環境変数（`GEMINI_API_KEY` など）→ `secrets.toml` → `config.toml`。
+API キーや接続先は、次の順で探します: 引数 → `OMNI_<PROVIDER>_<KEY>`（名前のハイフンは `_`。例: `OMNI_OLLAMA_CLOUD_API_KEY`）→ 各社の環境変数（`GEMINI_API_KEY` など）→ `secrets.toml` → `config.toml`。
 
 ```python
 from omni_ai import OmniClient

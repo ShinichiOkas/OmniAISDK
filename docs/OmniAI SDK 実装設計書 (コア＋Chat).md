@@ -1005,3 +1005,26 @@ Ollama:
 
 **実測（2026-11-08・Mac）**: メニューで chat（Ollama / gemma4:31b-cloud）・judge（tev1:0.8b）・embedding（Ollama / nomic-embed-text）を設定 → `omni-ai doctor` がすべて ✓ → `OmniClient.from_config()` で 3 機能が実物で動いた。メニューで Chat のモデルに埋め込みモデルまで並んでいた問題を、実際に操作して見つけて直した。
 
+
+## 25. Chat プロバイダーの追加（xAI・Agnes・OpenRouter・Ollama Cloud・OpenAI 互換サーバー）（2026-11-08）
+
+師匠の指示: 「../MnemoにあるELLM以外のプロバイダーに対応して」。決定: Chat のみ／手元の OpenAI 互換サーバーも含める（名前は `openai-compatible`）／Ollama Cloud はネイティブ API／実物での確認はせず偽物のテストだけ。
+
+| provider_name | アダプター | 接続先（既定） | キー | 構造化出力の既定 |
+| :--- | :--- | :--- | :--- | :--- |
+| `xai` | `XAIChatAdapter` | `https://api.x.ai/v1` | 必須 `XAI_API_KEY` | json_schema |
+| `agnes` | `AgnesChatAdapter` | `https://apihub.agnes-ai.com/v1` | 必須 `AGNES_API_KEY` | json_object（json_schema は未確認） |
+| `openrouter` | `OpenRouterChatAdapter` | `https://openrouter.ai/api/v1` | 必須 `OPENROUTER_API_KEY` | json_schema |
+| `openai-compatible` | `OpenAICompatibleChatAdapter` | なし（必須。`/v1` の有無を揃える） | 任意 | json_schema |
+| `ollama-cloud` | `OllamaCloudChatAdapter` | `https://ollama.com`（ネイティブ `/api/chat`） | 必須 `OLLAMA_API_KEY` | （Ollama の format） |
+
+- **共通の codec**（`providers/openai_compatible/codec.py`、I/O なし）: メッセージ（system / user / assistant＋tool_calls / tool）、画像（data URL または URL）、tools と tool_choice（auto / none / required / 関数名）、構造化出力（json_schema / json_object＋指示文 / prompt＝指示文だけ）、SSE（`[DONE]` 無しでも finish_reason があれば完了、ツール呼び出しの断片を index ごとに組み立て、本文の途中のエラー）、usage（推論トークンを completion から分ける・キャッシュ）、推論（`reasoning_content` / `reasoning`）、エラーの対応づけ（402→QuotaExceeded、文脈長→ContextLengthExceeded）
+- **素通し**: provider_options の自分の名前空間の `top_p` / `seed` / `stop` / `reasoning_effort` など、と `extra_body`
+- **既定のモデルを持たない**（Gemini 以外）。設定の検証で `models.<名前>` が無ければ誤り
+- **OpenRouter の帰属ヘッダーは付けない**（付けると公開ランキングに集計される。必要なら `extra_headers=`）
+- **応答の model ではなく指定した名前を記録**（ルーティング先の名前で返ることがあるため。単価の照合を安定させる）
+- **Ollama Cloud** は既存の Ollama codec に provider 名を引数で渡して共用。/api/show の能力確認とコンテナ向けの接続先切り替えはしない。無料扱いにしない
+- 環境変数の `OMNI_<P>_<K>` は、名前のハイフンを `_` にする（`OMNI_OLLAMA_CLOUD_API_KEY`）
+- 設定: `[xai]` `[agnes]` `[openrouter]` `[ollama-cloud]` `[openai-compatible]`（`base_url` / `api_key`。キーは secrets.toml）。`doctor` はキーの有無と、OpenAI 互換サーバーの `/models` への到達を見る。メニューはキーの入力・接続先・Chat の順番とモデル（一覧が 30 件以下なら選択、それ以外は手入力）
+
+**未確認**: 5 つとも実物には繋いでいない。契約テストの応答は OpenAI の公開仕様に沿った合成データ。usage の有無、推論の項目名、ツール呼び出しの分割の仕方、Agnes の json_schema 対応、Ollama Cloud の /api/show の有無は、実物で確かめるまで推測。

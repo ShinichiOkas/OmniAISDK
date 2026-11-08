@@ -50,7 +50,7 @@ __all__ = [
 # ---------------------------------------------------------------------------- 要求
 
 
-def _message_to_wire(msg: ChatMessage, inline_limit: int) -> dict[str, Any]:
+def _message_to_wire(msg: ChatMessage, inline_limit: int, provider: str = PROVIDER) -> dict[str, Any]:
     out: dict[str, Any] = {"role": msg.role.value}
     texts: list[str] = []
     images: list[str] = []
@@ -63,13 +63,13 @@ def _message_to_wire(msg: ChatMessage, inline_limit: int) -> dict[str, Any]:
             elif isinstance(part, MediaPart):
                 if part.type != "image":
                     raise UnsupportedFeatureError(
-                        f"Ollama /api/chat accepts images only (got {part.type})", provider=PROVIDER
+                        f"Ollama /api/chat accepts images only (got {part.type})", provider=provider
                     )
                 if isinstance(part.source, (UrlRef, FileRef)):
                     raise UnsupportedFeatureError(
-                        "Ollama accepts base64 images only; pass bytes, Path or a stream", provider=PROVIDER
+                        "Ollama accepts base64 images only; pass bytes, Path or a stream", provider=provider
                     )
-                images.append(to_base64(part.source, limit=inline_limit, provider=PROVIDER))
+                images.append(to_base64(part.source, limit=inline_limit, provider=provider))
     out["content"] = "\n".join(texts)
     if images:
         out["images"] = images
@@ -78,7 +78,7 @@ def _message_to_wire(msg: ChatMessage, inline_limit: int) -> dict[str, Any]:
         for i, tc in enumerate(msg.tool_calls):
             fn: dict[str, Any] = {"index": i, "name": tc.name, "arguments": tc.arguments}
             call: dict[str, Any] = {"type": "function", "function": fn}
-            if (orig := tc.provider_state.get(PROVIDER, {}).get("id")) is not None:
+            if (orig := tc.provider_state.get(provider, {}).get("id")) is not None:
                 call["id"] = orig
             calls.append(call)
         out["tool_calls"] = calls
@@ -90,19 +90,19 @@ def _message_to_wire(msg: ChatMessage, inline_limit: int) -> dict[str, Any]:
     return out
 
 
-def build_chat_body(req: ChatRequest, *, stream: bool) -> dict[str, Any]:
+def build_chat_body(req: ChatRequest, *, stream: bool, provider: str = PROVIDER) -> dict[str, Any]:
     opts = req.options
     inline_limit = int(opts.get("inline_limit", DEFAULT_INLINE_LIMIT))
     body: dict[str, Any] = {
         "model": req.model,
-        "messages": [_message_to_wire(m, inline_limit) for m in req.messages],
+        "messages": [_message_to_wire(m, inline_limit, provider) for m in req.messages],
         "stream": stream,
     }
     if req.functions and req.tool_choice != "none":
         if req.tool_choice != "auto":
             raise UnsupportedFeatureError(
                 f"Ollama /api/chat has no tool_choice (requested {req.tool_choice!r})",
-                provider=PROVIDER,
+                provider=provider,
                 model=req.model,
             )
         body["tools"] = [
@@ -156,7 +156,7 @@ def _finish(done_reason: str | None, has_tool_calls: bool) -> FinishReason:
     return "unknown"
 
 
-def _tool_call(raw: Mapping[str, Any]) -> ToolCall:
+def _tool_call(raw: Mapping[str, Any], provider: str = PROVIDER) -> ToolCall:
     fn = raw.get("function", {})
     args = fn.get("arguments", {})
     if isinstance(args, str):  # 念のため（資料では object）
@@ -169,7 +169,7 @@ def _tool_call(raw: Mapping[str, Any]) -> ToolCall:
         id=orig_id or new_tool_call_id(),
         name=fn.get("name", ""),
         arguments=args if isinstance(args, dict) else {"_raw": args},
-        provider_state={PROVIDER: {"id": orig_id}} if orig_id else {},
+        provider_state={provider: {"id": orig_id}} if orig_id else {},
     )
 
 
@@ -184,11 +184,11 @@ def _usage(data: Mapping[str, Any]) -> Usage:
     )
 
 
-def parse_chat_response(data: Mapping[str, Any], req: ChatRequest) -> ChatResponse:
+def parse_chat_response(data: Mapping[str, Any], req: ChatRequest, provider: str = PROVIDER) -> ChatResponse:
     if "error" in data:
-        raise map_error(200, json.dumps(data).encode(), {}, req.model)
+        raise map_error(200, json.dumps(data).encode(), {}, req.model, provider=provider)
     msg = data.get("message") or {}
-    calls = [_tool_call(tc) for tc in msg.get("tool_calls") or []]
+    calls = [_tool_call(tc, provider) for tc in msg.get("tool_calls") or []]
     return ChatResponse(
         content=msg.get("content") or None,
         reasoning=msg.get("thinking") or None,
@@ -196,15 +196,16 @@ def parse_chat_response(data: Mapping[str, Any], req: ChatRequest) -> ChatRespon
         finish_reason=_finish(data.get("done_reason"), bool(calls)),
         # 応答の model は版で変わる（実測: 0.40.6 は "gemma4:31b-cloud" を "gemma4:31b" で返す）
         # → 指定した名前を記録する（単価の判定で :cloud を見失わないため）
-        meta=ResponseMeta(provider=PROVIDER, model=req.model, usage=_usage(data)),
+        meta=ResponseMeta(provider=provider, model=req.model, usage=_usage(data)),
     )
 
 
 class OllamaStreamState:
     """NDJSON を共通の StreamEvent に変換する。"""
 
-    def __init__(self, req: ChatRequest) -> None:
+    def __init__(self, req: ChatRequest, provider: str = PROVIDER) -> None:
         self.req = req
+        self.provider = provider
         self.decoder = NDJSONDecoder()
         self.content: list[str] = []
         self.reasoning: list[str] = []
@@ -232,7 +233,7 @@ class OllamaStreamState:
         if not self.completed:
             raise ProviderOverloadedError(
                 "Ollama stream ended without a final (done=true) message",
-                provider=PROVIDER,
+                provider=self.provider,
                 model=self.req.model,
                 retryable=False,
             )
@@ -244,7 +245,7 @@ class OllamaStreamState:
             if isinstance(obj, MalformedLine):
                 self._pending_error = ProviderOverloadedError(
                     f"malformed line in Ollama stream: {obj.text!r}",
-                    provider=PROVIDER,
+                    provider=self.provider,
                     model=self.req.model,
                     retryable=False,
                 )
@@ -253,7 +254,9 @@ class OllamaStreamState:
                 continue
             if "error" in obj:
                 # HTTP 200 のまま、行の中でエラーが届く
-                self._pending_error = map_error(500, json.dumps(obj).encode(), {}, self.req.model)
+                self._pending_error = map_error(
+                    500, json.dumps(obj).encode(), {}, self.req.model, provider=self.provider
+                )
                 break
             msg = obj.get("message") or {}
             if thinking := msg.get("thinking"):
@@ -263,7 +266,7 @@ class OllamaStreamState:
                 self.content.append(text)
                 events.append(StreamEvent(type="text_delta", delta_text=text))
             for raw in msg.get("tool_calls") or []:
-                tc = _tool_call(raw)
+                tc = _tool_call(raw, self.provider)
                 self.tool_calls.append(tc)
                 events.append(StreamEvent(type="tool_call", tool_call=tc))
             if obj.get("done"):
@@ -274,7 +277,7 @@ class OllamaStreamState:
                     reasoning="".join(self.reasoning) or None,
                     tool_calls=list(self.tool_calls),
                     finish_reason=finish,
-                    meta=ResponseMeta(provider=PROVIDER, model=self.req.model, usage=_usage(obj)),
+                    meta=ResponseMeta(provider=self.provider, model=self.req.model, usage=_usage(obj)),
                 )
                 events.append(
                     StreamEvent(
@@ -289,11 +292,13 @@ class OllamaStreamState:
 _NON_TRANSIENT_500 = ("runner failed", "unsupported architecture", "failed to load")
 
 
-def map_error(status: int, body: bytes, headers: Mapping[str, str], model: str | None) -> OmniError:
+def map_error(
+    status: int, body: bytes, headers: Mapping[str, str], model: str | None, *, provider: str = PROVIDER
+) -> OmniError:
     data = parse_error_json(body)
     message = data.get("error") if isinstance(data, dict) else None
     message = str(message or body[:500].decode("utf-8", errors="replace") or f"HTTP {status}")
-    kw: dict[str, Any] = {"provider": PROVIDER, "model": model, "status_code": status}
+    kw: dict[str, Any] = {"provider": provider, "model": model, "status_code": status}
     lowered = message.lower()
     if status == 400:
         if "does not support" in lowered:
