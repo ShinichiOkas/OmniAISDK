@@ -1,7 +1,7 @@
 ---
 sprint_id: ebfeb020-b44c-4447-a40b-735d84c99cfd
-version: 1
-status: executing
+version: 2
+status: completed
 created_at: 2026-11-08T06:00:00+09:00
 updated_at: 2026-11-08T06:00:00+09:00
 domain_tags: [python-sdk, image-generation, ollama]
@@ -45,3 +45,5 @@ Ollama の画像生成（実験的・macOS のみ）を実物で調べ、使え�
 ## 変更ログ
 
 - v1 [2026-11-08]: 初版
+- 師匠（原文 2026-11-08）: 「保留してモデルを削除 (Recommended)」→ Image は保留。x/flux2-klein:4b を削除（/api/delete）
+- v2 [2026-11-08]: 調査のみで完了（実装せず）

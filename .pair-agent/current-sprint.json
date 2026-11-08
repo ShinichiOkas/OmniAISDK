@@ -1,6 +1,6 @@
 {
   "sprint_id": "ebfeb020-b44c-4447-a40b-735d84c99cfd",
-  "status": "executing",
+  "status": "completed",
   "goal": "Image（Ollama の画像生成の調査）",
   "created_at": "2026-11-07T15:31:05+09:00",
   "agreement_path": ".pair-agent/agreements/image.md"

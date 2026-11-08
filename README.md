@@ -90,7 +90,8 @@ OmniAISDK/
 | MCP: 公式 SDK 2.x（stdio / streamable-http） | 実装済み・実際の MCP サーバーで確認済み（Ollama から MCP ツールを呼ぶ live 確認） |
 | Judge: Ollama の decision モデル（`/v1/systemone`、要 Ollama 0.35+） | 実装済み・実物で確認済み（tev1:0.8b / kev:0.8b-q8_0） |
 | Audio: 合成 edge-tts（キー不要・オンライン）/ 認識 faster-whisper（ローカル） | 実装済み・実物で確認済み（日本語の合成 → 認識の往復） |
-| その他の 2 領域（Image / Sandbox） | 抽象インタフェースのみ |
+| Image | **保留**（Ollama は v0.32.6 で画像生成を削除、Gemini は課金の設定が必要。実装設計書 §21） |
+| Sandbox | 抽象インタフェースのみ |
 
 ## 使い方
 
