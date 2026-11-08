@@ -967,3 +967,23 @@ Ollama:
 
 **残留リスク**: コンテナはカーネルを共有するので、仮想マシンほどの隔離ではない（Docker Desktop では Linux VM の中で動く）。パッケージが要るコードは、利用者が自分のイメージを `image=` で渡す。
 
+---
+
+## 23. OS 依存の点検と CI の拡張（2026-11-08）
+
+師匠の問い: 「今回の実装で、mac依存でLinux, Windowsで動作しない部分はある？」→ 点検の結果、OS の分岐は `compat.py` の中だけで、Mac でしか動かないコードは無い。ただし Mac でしか実物で確かめていない部分があった。師匠の指示「１，３を進めてコミット、プッシュしてください」で次を行った。
+
+**1. CI の拡張**
+- 3 OS × Python 3.11〜3.13 の全ジョブで `[dev,docs,mcp,local,search,audio]` を入れる（バイナリ wheel: onnxruntime・ctranslate2・PyAV・primp 等が各 OS で入るかを確かめる）
+- `tests/unit/test_extras_smoke.py`: 各エンジンのライブラリが読み込めること、アダプターを作るだけではモデルを読み込まずネットワークにも出ないことを確かめる。CI は `OMNI_REQUIRE_EXTRAS=1` で「入っていなければ失敗」
+- Linux のランナーでは、Docker の Sandbox を実物でテストする（`tests/live/test_live_sandbox.py`。隔離・メモリ超過・時間切れ）
+
+**3. Docker の接続エラーを分かりやすく**
+- Linux: Docker のソケットに権限が無い（docker グループに入っていない）→ `ProviderConnectionError`（`usermod -aG docker` の案内つき）
+- Windows: 名前付きパイプ `//./pipe/docker_engine` に届かない（Docker Desktop が起動していない）→ `ProviderConnectionError`
+
+**残る未確認（師匠の Windows 機での確認待ち）**
+- Docker Desktop の CLI の場所 `%PROGRAMFILES%\Docker\Docker\resources\bin\docker.exe`（推測）
+- Docker Desktop が Windows コンテナのモードだと動かない（Linux のイメージを使うため）
+- 実 API・実物の live テストは、Mac 以外では Docker の Sandbox（Linux CI）しか流していない
+

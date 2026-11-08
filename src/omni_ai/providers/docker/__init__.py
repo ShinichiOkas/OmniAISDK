@@ -128,9 +128,21 @@ class DockerSandboxAdapter(SandboxCapability):
             return NotFoundError(
                 f"image {self.image!r} is not present; call ensure_image() first", provider=self.provider_name
             )
-        if "cannot connect to the docker daemon" in low or "500 internal server error" in low:
+        if "permission denied" in low and ("docker.sock" in low or "docker daemon socket" in low):
+            # Linux: ソケットを使う権限が無い（docker グループに入っていない）
             return ProviderConnectionError(
-                f"Docker daemon is not available: {stderr.strip()[:200]}", provider=self.provider_name
+                "permission denied on the Docker socket; add your user to the 'docker' group "
+                f"(sudo usermod -aG docker $USER) and log in again: {stderr.strip()[:200]}",
+                provider=self.provider_name,
+            )
+        if (
+            "cannot connect to the docker daemon" in low
+            or "500 internal server error" in low
+            or ("error during connect" in low and "pipe" in low)  # Windows: 名前付きパイプに届かない
+        ):
+            return ProviderConnectionError(
+                f"Docker daemon is not available (is Docker running?): {stderr.strip()[:200]}",
+                provider=self.provider_name,
             )
         return OmniError(f"docker failed (exit {code}): {stderr.strip()[:300]}", provider=self.provider_name)
 

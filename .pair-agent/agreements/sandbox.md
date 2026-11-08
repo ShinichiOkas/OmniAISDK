@@ -1,6 +1,6 @@
 ---
 sprint_id: b04dd517-edd8-4bef-9a2a-a039f7640b27
-version: 2
+version: 3
 status: reviewing
 created_at: 2026-11-08T07:00:00+09:00
 updated_at: 2026-11-08T07:00:00+09:00
@@ -50,3 +50,6 @@ SandboxCapability を、ローカルの Docker で Python を隔離実行する�
 
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 実装・live 確認（Ollama の CODE_EXECUTION を Docker で end-to-end）
+- 師匠（原文 2026-11-08）: 「今回の実装で、mac依存でLinux, Windowsで動作しない部分はある？」→ 点検結果を報告（Mac 依存のコードは無し・未確認の部分あり）
+- 師匠（原文）: 「１，３を進めてコミット、プッシュしてください」→ CI に全 extras と Linux の Docker 実物テストを追加。Docker の権限エラー（Linux）と名前付きパイプのエラー（Windows）を ProviderConnectionError に
+- v3 [2026-11-08]: OS 依存の点検と CI の拡張

@@ -114,6 +114,18 @@ def test_oom_note_and_truncation() -> None:
             b"Cannot connect to the Docker daemon at unix:///x. Is the docker daemon running?",
             ProviderConnectionError,
         ),
+        # Linux: docker グループに入っていない
+        (
+            b"permission denied while trying to connect to the Docker daemon socket at "
+            b"unix:///var/run/docker.sock: dial unix /var/run/docker.sock: connect: permission denied",
+            ProviderConnectionError,
+        ),
+        # Windows: Docker Desktop が起動していない
+        (
+            b"error during connect: this error may indicate that the docker daemon is not running: "
+            b"open //./pipe/docker_engine: The system cannot find the file specified.",
+            ProviderConnectionError,
+        ),
     ],
 )
 def test_docker_errors(stderr: bytes, exc: type) -> None:
