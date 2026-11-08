@@ -8,6 +8,7 @@ import time
 from collections import defaultdict
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
 from contextlib import aclosing
+from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
@@ -581,6 +582,15 @@ class OmniClient:
         self._doc_parser_proxy = (
             InstrumentedDocumentParser(doc_parser, self._recorder) if doc_parser is not None else None
         )
+
+    @classmethod
+    def from_config(
+        cls, config_file: Path | None = None, secrets_file: Path | None = None, **kwargs: Any
+    ) -> OmniClient:
+        """config.toml / secrets.toml（OS 標準の設定場所。OMNI_CONFIG_DIR で変更可）から組み立てる。"""
+        from .builder import client_from_config
+
+        return client_from_config(config_file, secrets_file, **kwargs)
 
     def _get(self, name: str) -> Any:
         cap = self._caps[name]

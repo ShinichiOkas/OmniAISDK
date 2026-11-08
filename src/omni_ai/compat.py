@@ -54,6 +54,15 @@ class PlatformCompat:
         return path
 
     @staticmethod
+    def make_private(path: Path) -> None:
+        """ファイルを本人だけが読み書きできるようにする（POSIX は 0600）。
+
+        Windows はユーザープロファイル配下の既定の ACL に任せる（chmod では制御できない）。
+        """
+        if not PlatformCompat.is_windows():
+            path.chmod(0o600)
+
+    @staticmethod
     def normalize_path_str(path: Path) -> str:
         """macOS の NFD 濁点を NFC に正規化し、POSIX 形式の文字列にする。"""
         return unicodedata.normalize("NFC", path.resolve().as_posix())

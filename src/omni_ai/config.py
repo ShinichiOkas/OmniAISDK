@@ -1,6 +1,7 @@
-"""設定・認証の 4 段階解決（ADR-04 / 実装設計書 §5.5）。
+"""設定・認証の段階的な解決（ADR-04 / 実装設計書 §5.5・§24）。
 
-① 引数 → ② ``OMNI_<PROVIDER>_<KEY>`` → ③ 各社の標準環境変数 → ④ 設定ファイル (config.toml)
+① 引数 → ② ``OMNI_<PROVIDER>_<KEY>`` → ③ 各社の標準環境変数
+→ ④ 秘密ファイル (secrets.toml) → ⑤ 設定ファイル (config.toml)
 ``.env`` は SDK からは読まない。
 """
 
@@ -12,11 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from .compat import PlatformCompat
-
 __all__ = ["ConfigSource", "ResolvedSetting", "load_config_file", "resolve_setting"]
 
-ConfigSource = Literal["argument", "omni_env", "provider_env", "config_file", "default", "unset"]
+ConfigSource = Literal[
+    "argument", "omni_env", "provider_env", "secrets_file", "config_file", "default", "unset"
+]
 
 # ③ 各社の標準環境変数（左から優先）
 PROVIDER_ENV_VARS: dict[tuple[str, str], tuple[str, ...]] = {
@@ -41,7 +42,9 @@ class ResolvedSetting:
 
 
 def default_config_path() -> Path:
-    return PlatformCompat.get_config_dir(create=False) / "config.toml"
+    from .settings import config_path
+
+    return config_path()
 
 
 def load_config_file(path: Path | None = None) -> dict[str, Any]:
@@ -72,6 +75,12 @@ def resolve_setting(
     for var in PROVIDER_ENV_VARS.get((provider, key), ()):
         if env.get(var):
             return ResolvedSetting(env[var], "provider_env", name)
+    if config is None:
+        from .settings import load_secrets
+
+        sec_section = load_secrets().get(provider)
+        if isinstance(sec_section, dict) and sec_section.get(key):
+            return ResolvedSetting(str(sec_section[key]), "secrets_file", name)
     cfg = load_config_file() if config is None else config
     section = cfg.get(provider)
     if isinstance(section, dict) and section.get(key):

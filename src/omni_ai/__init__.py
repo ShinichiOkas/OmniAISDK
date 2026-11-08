@@ -1,6 +1,7 @@
 """OmniAI SDK — マルチプロバイダ統合 Python SDK。"""
 
 from ._version import __version__
+from .builder import ConfigurationError
 from .capabilities import ChatCapability
 from .exceptions import (
     AuthenticationError,
@@ -46,6 +47,7 @@ __all__ = [
     "ChatCapability",
     "ChatMessage",
     "ChatResponse",
+    "ConfigurationError",
     "ContextLengthExceededError",
     "FallbackChatAdapter",
     "FileRef",
