@@ -1296,3 +1296,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-22 | §4, §5 | DocParser を実装（pypdf / markitdown、MIME で振り分け）。`parse(mime_type=None)` で拡張子から判定、`ParsedDocument.mime_type` / `empty_reason` を追加 | 実装設計書 §17 |
 | D-23 | §5 | MCP を実装（mcp SDK 2.x、stdio / streamable-http）。`acall_tool` は `MCPToolResult` を返し、`timeout` を追加 | 実装設計書 §18 |
 | D-24 | §2, §4 | Judge を Ollama の decision モデル（`/v1/systemone`、Jev に倣った API）で実装。`NoulQuestion.criteria` を追加。VerdictResult の各型での意味を定義 | 実装設計書 §19 |
+| D-25 | §2, §4, §5 | Audio を実装（合成: edge-tts、認識: faster-whisper、AudioRouter で束ねる）。`speak(voice=None)` に変更、`AudioTranscriptionResponse` に `segments` / `language_probability` を追加 | 実装設計書 §20 |

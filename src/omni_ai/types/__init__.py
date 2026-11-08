@@ -22,6 +22,7 @@ from .other import (
     ScoreQuestion,
     SearchItem,
     SearchResponse,
+    TranscriptSegment,
     VerdictResult,
 )
 from .tools import BuiltinTool, OmniTool, ToolCall, ToolDefinition, ToolSpec, normalize_json_schema, omni_tool
@@ -62,6 +63,7 @@ __all__ = [
     "ToolCall",
     "ToolDefinition",
     "ToolSpec",
+    "TranscriptSegment",
     "UrlRef",
     "Usage",
     "VerdictResult",

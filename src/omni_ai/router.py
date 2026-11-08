@@ -35,6 +35,8 @@ from .exceptions import (
 )
 from .pricing import PricingTable
 from .types import (
+    AudioSpeechResponse,
+    AudioTranscriptionResponse,
     BuiltinTool,
     ChatMessage,
     ChatResponse,
@@ -330,6 +332,46 @@ class InstrumentedJudge(JudgeCapability):
         await self.inner.aclose()
 
 
+class InstrumentedAudio(AudioCapability):
+    """OmniClient.audio が返すプロキシ。時間を記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: AudioCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+
+    def speak(self, text: str, **kwargs: Any) -> AudioSpeechResponse:
+        started = time.perf_counter()
+        res = self.inner.speak(text, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    async def aspeak(self, text: str, **kwargs: Any) -> AudioSpeechResponse:
+        started = time.perf_counter()
+        res = await self.inner.aspeak(text, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    def transcribe(self, audio: Any, **kwargs: Any) -> AudioTranscriptionResponse:
+        started = time.perf_counter()
+        res = self.inner.transcribe(audio, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    async def atranscribe(self, audio: Any, **kwargs: Any) -> AudioTranscriptionResponse:
+        started = time.perf_counter()
+        res = await self.inner.atranscribe(audio, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
 # ============================================================================ Fallback
 
 
@@ -505,6 +547,7 @@ class OmniClient:
         self._search_proxy = InstrumentedSearch(search, self._recorder) if search is not None else None
         self._rerank_proxy = InstrumentedRerank(rerank, self._recorder) if rerank is not None else None
         self._judge_proxy = InstrumentedJudge(judge, self._recorder) if judge is not None else None
+        self._audio_proxy = InstrumentedAudio(audio, self._recorder) if audio is not None else None
         self._doc_parser_proxy = (
             InstrumentedDocumentParser(doc_parser, self._recorder) if doc_parser is not None else None
         )
@@ -540,8 +583,9 @@ class OmniClient:
 
     @property
     def audio(self) -> AudioCapability:
-        cap: AudioCapability = self._get("audio")
-        return cap
+        if self._audio_proxy is None:
+            raise CapabilityNotConfiguredError("audio provider is not configured.", provider="omni")
+        return self._audio_proxy
 
     @property
     def embedding(self) -> EmbeddingCapability:

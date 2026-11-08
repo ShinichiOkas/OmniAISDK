@@ -6,10 +6,13 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._audio_base import AudioRouter
     from ._doc_base import MimeRoutingDocumentParser
     from .ddgs import DDGSSearchAdapter
+    from .edge_tts import EdgeTTSAudioAdapter
     from .fastembed import FastEmbedEmbeddingAdapter
     from .fastembed.rerank import FastEmbedRerankAdapter
+    from .faster_whisper import FasterWhisperAudioAdapter
     from .gemini import GeminiChatAdapter
     from .gemini.embedding import GeminiEmbeddingAdapter
     from .markitdown import MarkItDownDocumentParser
@@ -20,6 +23,9 @@ if TYPE_CHECKING:
     from .pypdf import PyPDFDocumentParser
 
 _LAZY = {
+    "AudioRouter": "._audio_base",
+    "EdgeTTSAudioAdapter": ".edge_tts",
+    "FasterWhisperAudioAdapter": ".faster_whisper",
     "MCPClientAdapter": ".mcp",
     "MarkItDownDocumentParser": ".markitdown",
     "MimeRoutingDocumentParser": "._doc_base",
@@ -35,9 +41,12 @@ _LAZY = {
 }
 
 __all__ = [
+    "AudioRouter",
     "DDGSSearchAdapter",
+    "EdgeTTSAudioAdapter",
     "FastEmbedEmbeddingAdapter",
     "FastEmbedRerankAdapter",
+    "FasterWhisperAudioAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",
     "MCPClientAdapter",

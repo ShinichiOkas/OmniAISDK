@@ -35,7 +35,7 @@ __all__ = ["MCPClientAdapter", "describe_exc"]
 
 logger = logging.getLogger("omni_ai")
 
-DEFAULT_CALL_TIMEOUT = 120.0  # 無応答サーバーで永久に待たない（Mnemo と同じ値）
+DEFAULT_CALL_TIMEOUT = 120.0  # 無応答サーバーで永久に待たない
 DEFAULT_CONNECT_TIMEOUT = 30.0
 
 

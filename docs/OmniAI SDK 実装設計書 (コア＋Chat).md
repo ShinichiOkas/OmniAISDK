@@ -908,3 +908,23 @@ Ollama:
 - **応答の `model` が `gemma4:31b-cloud` から `gemma4:31b` に変わった**（`remote_model` / `remote_host` も無くなった）。SDK が応答のモデル名を記録していたため、クラウドモデルを無料と誤判定していた → Ollama のアダプター（チャット・埋め込み・Judge）は、**呼び出し側が指定したモデル名を記録する**ように修正（回帰テストあり）
 - それ以外の Ollama の live テスト（チャット・埋め込み・検索代行・MCP）は 0.40.6 でもすべて通過
 
+---
+
+## 20. Audio（2026-11-08 追加スプリント）
+
+師匠の指示: 構成「合成: Gemini TTS」「認識: faster-whisper」→ 直後に「取り消し、TTSはMnemoと同じEdgeTTSにしてほしい。mnemo-slideで採用している。」→「edge-tts ライブラリを直接」。認識のモデルは「medium（1.5GB）」。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| 構成 | 合成 `EdgeTTSAudioAdapter`（`"edge-tts"`）、認識 `FasterWhisperAudioAdapter`（`"faster-whisper"`）、束ねる `AudioRouter`。extras `[audio]` | エンジンごとにアダプターを分ける（命名ルール）。結果の `meta.provider` は実際のエンジン |
+| 合成 | 既定の声 `ja-JP-NanamiNeural`、話速 -50〜+100%、声の高さ -50〜+50Hz（Mnemo の mnemo-slide と同じ）。出力は MP3 のみ。同期版は別スレッドの新しいループで実行 | edge-tts は非同期だけ。実測で MP3 |
+| 合成のエラー | 存在しない声 → `NoAudioReceived` → `InvalidRequestError`（声の確認を促す） | 実測: 声の誤りがこの例外になる |
+| 認識 | 既定は medium・CPU・int8（Mnemo と同じ）、`vad_filter=True`、`beam_size=5`。結果に `segments` / `language_probability` を追加 | Mnemo の core/transcribe.py |
+| 入力 | Path / bytes / ストリーム（読んだら位置を戻す）。URL・素の str は受け付けない | 他の領域と同じ方針 |
+| 仕様の変更 | `AudioCapability.speak(voice=None)`（v3.0 の既定 "alloy" は OpenAI 固有） | アダプターごとに既定の声が違う |
+| 外部送信 | ⚠ 合成する文章は Microsoft のオンラインサービスへ送られる | edge-tts の仕組み |
+
+**実測（2026-11-08・Mac）**: edge-tts で「猫は一日に十二時間から十六時間ほど眠ると言われています。」を合成（MP3、2.2 秒）→ faster-whisper medium で「猫は1日に12時間から16時間ほど眠ると言われています」（言語 ja・確率 1.00、5.7 秒の音声を 3.3 秒）。漢数字が算用数字になる以外は一致。日本語の声は Nanami / Keita の 2 つ。
+
+**付記**: Gemini の TTS（gemini-3.8-flash-tts）は日本語で動くことを実測したが、師匠の決定で採用しなかった。Gemini の画像生成は 429（quota）。Ollama の音声合成（phonon）は v0.40.9 以上・英語のみ。
+

@@ -193,13 +193,19 @@ AudioFormat = Literal["mp3", "wav", "opus", "pcm"]
 
 
 class AudioCapability(Capability):
+    """音声合成（speak）と音声認識（transcribe）。``voice=None`` はアダプターの既定の声。
+
+    エンジンが別々のときは、片方だけを実装し、もう片方は ``UnsupportedFeatureError`` にする
+    （``providers.AudioRouter`` で束ねる）。
+    """
+
     @abstractmethod
     def speak(
         self,
         text: str,
         *,
         model: str | None = None,
-        voice: str = "alloy",
+        voice: str | None = None,
         response_format: AudioFormat = "mp3",
         **provider_options: Any,
     ) -> AudioSpeechResponse: ...
@@ -210,7 +216,7 @@ class AudioCapability(Capability):
         text: str,
         *,
         model: str | None = None,
-        voice: str = "alloy",
+        voice: str | None = None,
         response_format: AudioFormat = "mp3",
         **provider_options: Any,
     ) -> AudioSpeechResponse: ...

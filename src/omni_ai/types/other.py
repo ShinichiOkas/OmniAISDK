@@ -28,6 +28,7 @@ __all__ = [
     "ScoreQuestion",
     "SearchItem",
     "SearchResponse",
+    "TranscriptSegment",
     "VerdictResult",
 ]
 
@@ -96,10 +97,18 @@ class AudioSpeechResponse(BaseModel):
     meta: ResponseMeta
 
 
+class TranscriptSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
 class AudioTranscriptionResponse(BaseModel):
     text: str
     language: str | None = None
+    language_probability: float | None = None
     duration_seconds: float | None = None
+    segments: list[TranscriptSegment] = Field(default_factory=list)
     meta: ResponseMeta
 
 

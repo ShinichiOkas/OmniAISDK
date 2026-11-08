@@ -89,12 +89,13 @@ OmniAISDK/
 | DocParser: pypdf（PDF）/ markitdown（Office・RTF） | 実装済み・実物の文書ファイルで確認済み |
 | MCP: 公式 SDK 2.x（stdio / streamable-http） | 実装済み・実際の MCP サーバーで確認済み（Ollama から MCP ツールを呼ぶ live 確認） |
 | Judge: Ollama の decision モデル（`/v1/systemone`、要 Ollama 0.35+） | 実装済み・実物で確認済み（tev1:0.8b / kev:0.8b-q8_0） |
-| その他の 3 領域（Image / Audio / Sandbox） | 抽象インタフェースのみ |
+| Audio: 合成 edge-tts（キー不要・オンライン）/ 認識 faster-whisper（ローカル） | 実装済み・実物で確認済み（日本語の合成 → 認識の往復） |
+| その他の 2 領域（Image / Sandbox） | 抽象インタフェースのみ |
 
 ## 使い方
 
 ```bash
-pip install -e ".[dev]"          # ローカル埋め込み・検索・文書解析も使うなら ".[dev,local,search,docs,mcp]"
+pip install -e ".[dev]"          # ローカル埋め込み・検索・文書解析も使うなら ".[dev,local,search,docs,mcp,audio]"
 ```
 
 ```python

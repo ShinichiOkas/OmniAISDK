@@ -1,7 +1,7 @@
 {
-  "sprint_id": "680d057e-aa47-4d4f-8655-32d13eb30ecf",
-  "status": "completed",
-  "goal": "Judge（Ollama decision モデル）",
+  "sprint_id": "9b97d282-a35d-4036-b0d0-086bf2e1e4de",
+  "status": "reviewing",
+  "goal": "Audio（edge-tts / faster-whisper）",
   "created_at": "2026-11-07T15:31:05+09:00",
-  "agreement_path": ".pair-agent/agreements/judge.md"
+  "agreement_path": ".pair-agent/agreements/audio.md"
 }
