@@ -6,7 +6,7 @@ SRC = Path(__file__).parent.parent.parent / "src" / "omni_ai"
 
 
 def test_no_mnemo_name_in_code() -> None:
-    """「Mnemo」という名称はコードに出さない（confirmed 2026-11-08: provider-naming-engine-name-no-mnemo）。"""
+    """「Mnemo」という名称はコードに出さない（confirmed 2026-11-08）。"""
     hits = [
         f"{p.relative_to(SRC)}:{i}"
         for p in SRC.rglob("*.py")
