@@ -1,7 +1,7 @@
 ---
 sprint_id: 9b97d282-a35d-4036-b0d0-086bf2e1e4de
 version: 2
-status: reviewing
+status: completed
 created_at: 2026-11-08T05:00:00+09:00
 updated_at: 2026-11-08T05:00:00+09:00
 domain_tags: [python-sdk, audio, tts, stt]
@@ -45,3 +45,4 @@ AudioCapability を、音声合成は edge-tts、音声認識は faster-whisper 
 
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 実装・live 確認（日本語の合成 → 認識の往復）
+- 師匠（原文）: 「了解。Ollamaの調査から開始してください」→ スプリント完了

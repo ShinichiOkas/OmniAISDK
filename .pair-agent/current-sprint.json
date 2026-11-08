@@ -1,6 +1,6 @@
 {
   "sprint_id": "9b97d282-a35d-4036-b0d0-086bf2e1e4de",
-  "status": "reviewing",
+  "status": "completed",
   "goal": "Audio（edge-tts / faster-whisper）",
   "created_at": "2026-11-07T15:31:05+09:00",
   "agreement_path": ".pair-agent/agreements/audio.md"
