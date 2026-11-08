@@ -1,7 +1,7 @@
 ---
 sprint_id: 8ae92190-c6db-4452-a1c7-dc08fba812dd
 version: 3
-status: reviewing
+status: completed
 created_at: 2026-11-08T09:00:00+09:00
 updated_at: 2026-11-08T09:00:00+09:00
 domain_tags: [python-sdk, install, configuration, cli]
@@ -67,3 +67,4 @@ change_count_improvement: 0
 - v1 [2026-11-08]: 初版
 - v2 [2026-11-08]: 未決事項を決定、実行へ
 - v3 [2026-11-08]: 3 段とも実装。メニュー → doctor → from_config を実物で確認
+- 師匠（原文 2026-11-08）: 「確認した。判断は間違ってないので合意する。スプリントを閉じて。」→ I-01〜I-13 承認・スプリント完了（CI 084d1b4 全 9 ジョブ success、Linux Docker 5 passed）
