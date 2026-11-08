@@ -45,6 +45,7 @@ from .types import (
     ParsedDocument,
     RerankResponse,
     ResponseMeta,
+    SandboxExecutionResult,
     SearchResponse,
     StreamEvent,
     ToolSpec,
@@ -372,6 +373,34 @@ class InstrumentedAudio(AudioCapability):
         await self.inner.aclose()
 
 
+class InstrumentedSandbox(SandboxCapability):
+    """OmniClient.sandbox が返すプロキシ。時間を記録してフックを呼ぶ。"""
+
+    provider_name: ClassVar[str] = "instrumented"
+
+    def __init__(self, inner: SandboxCapability, recorder: _Recorder) -> None:
+        self.inner = inner
+        self._recorder = recorder
+
+    def execute_python(self, code: str, **kwargs: Any) -> SandboxExecutionResult:
+        started = time.perf_counter()
+        res = self.inner.execute_python(code, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    async def aexecute_python(self, code: str, **kwargs: Any) -> SandboxExecutionResult:
+        started = time.perf_counter()
+        res = await self.inner.aexecute_python(code, **kwargs)
+        self._recorder.record(res.meta, started)
+        return res
+
+    def close(self) -> None:
+        self.inner.close()
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()
+
+
 # ============================================================================ Fallback
 
 
@@ -548,6 +577,7 @@ class OmniClient:
         self._rerank_proxy = InstrumentedRerank(rerank, self._recorder) if rerank is not None else None
         self._judge_proxy = InstrumentedJudge(judge, self._recorder) if judge is not None else None
         self._audio_proxy = InstrumentedAudio(audio, self._recorder) if audio is not None else None
+        self._sandbox_proxy = InstrumentedSandbox(sandbox, self._recorder) if sandbox is not None else None
         self._doc_parser_proxy = (
             InstrumentedDocumentParser(doc_parser, self._recorder) if doc_parser is not None else None
         )
@@ -568,7 +598,7 @@ class OmniClient:
     def tools(self) -> ToolRunner:
         from .tools import ToolRunner
 
-        return ToolRunner(self.chat, search=self._search_proxy, sandbox=self._caps["sandbox"])  # type: ignore[arg-type]
+        return ToolRunner(self.chat, search=self._search_proxy, sandbox=self._sandbox_proxy)
 
     @property
     def judge(self) -> JudgeCapability:
@@ -613,8 +643,9 @@ class OmniClient:
 
     @property
     def sandbox(self) -> SandboxCapability:
-        cap: SandboxCapability = self._get("sandbox")
-        return cap
+        if self._sandbox_proxy is None:
+            raise CapabilityNotConfiguredError("sandbox provider is not configured.", provider="omni")
+        return self._sandbox_proxy
 
     @property
     def mcp(self) -> MCPCapability:

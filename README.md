@@ -91,7 +91,7 @@ OmniAISDK/
 | Judge: Ollama の decision モデル（`/v1/systemone`、要 Ollama 0.35+） | 実装済み・実物で確認済み（tev1:0.8b / kev:0.8b-q8_0） |
 | Audio: 合成 edge-tts（キー不要・オンライン）/ 認識 faster-whisper（ローカル） | 実装済み・実物で確認済み（日本語の合成 → 認識の往復） |
 | Image | **保留**（Ollama は v0.32.6 で画像生成を削除、Gemini は課金の設定が必要。実装設計書 §21） |
-| Sandbox | 抽象インタフェースのみ |
+| Sandbox: ローカルの Docker（ネットワーク遮断・読み取り専用・資源制限） | 実装済み・実物で確認済み（Ollama の CODE_EXECUTION 代行も end-to-end） |
 
 ## 使い方
 

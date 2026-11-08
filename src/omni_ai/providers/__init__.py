@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ._audio_base import AudioRouter
     from ._doc_base import MimeRoutingDocumentParser
     from .ddgs import DDGSSearchAdapter
+    from .docker import DockerSandboxAdapter
     from .edge_tts import EdgeTTSAudioAdapter
     from .fastembed import FastEmbedEmbeddingAdapter
     from .fastembed.rerank import FastEmbedRerankAdapter
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from .pypdf import PyPDFDocumentParser
 
 _LAZY = {
+    "DockerSandboxAdapter": ".docker",
     "AudioRouter": "._audio_base",
     "EdgeTTSAudioAdapter": ".edge_tts",
     "FasterWhisperAudioAdapter": ".faster_whisper",
@@ -43,6 +45,7 @@ _LAZY = {
 __all__ = [
     "AudioRouter",
     "DDGSSearchAdapter",
+    "DockerSandboxAdapter",
     "EdgeTTSAudioAdapter",
     "FastEmbedEmbeddingAdapter",
     "FastEmbedRerankAdapter",

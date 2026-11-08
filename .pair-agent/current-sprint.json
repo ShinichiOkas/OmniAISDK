@@ -1,6 +1,6 @@
 {
   "sprint_id": "b04dd517-edd8-4bef-9a2a-a039f7640b27",
-  "status": "executing",
+  "status": "reviewing",
   "goal": "Sandbox（ローカル Docker）",
   "created_at": "2026-11-07T15:31:05+09:00",
   "agreement_path": ".pair-agent/agreements/sandbox.md"

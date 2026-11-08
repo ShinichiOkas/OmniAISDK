@@ -90,6 +90,36 @@ class PlatformCompat:
         raise FileNotFoundError(f"Executable {cmd!r} not found in PATH on {sys.platform}.")
 
     @staticmethod
+    def resolve_docker() -> tuple[str, dict[str, str]]:
+        """docker CLI のパスと、実行時の環境変数を返す。
+
+        Docker Desktop は CLI を PATH に入れないことがある（実測: macOS で /usr/local/bin に無かった）。
+        資格情報ヘルパー（docker-credential-desktop）も同じ bin にあるため、その bin を PATH の先頭に足す。
+        """
+        env = dict(os.environ)
+        found = shutil.which("docker")
+        if found:
+            return found, env
+        candidates: list[Path] = []
+        if PlatformCompat.is_macos():
+            candidates = [
+                Path("/Applications/Docker.app/Contents/Resources/bin/docker"),
+                Path("~/.docker/bin/docker").expanduser(),
+                Path("/usr/local/bin/docker"),
+                Path("/opt/homebrew/bin/docker"),
+            ]
+        elif PlatformCompat.is_windows():
+            pf = Path(os.environ.get("PROGRAMFILES", "C:/Program Files"))
+            candidates = [pf / "Docker" / "Docker" / "resources" / "bin" / "docker.exe"]
+        else:
+            candidates = [Path("/usr/bin/docker"), Path("/usr/local/bin/docker")]
+        for c in candidates:
+            if c.exists():
+                env["PATH"] = str(c.parent) + os.pathsep + env.get("PATH", "")
+                return str(c), env
+        raise FileNotFoundError("docker CLI not found (is Docker Desktop / Docker Engine installed?)")
+
+    @staticmethod
     def is_in_container() -> bool:
         if Path("/.dockerenv").exists():
             return True

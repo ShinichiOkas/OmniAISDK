@@ -946,3 +946,24 @@ Ollama:
 - Gemini の画像生成（gemini-3.1-flash-image）は 429（quota・課金の設定が必要）
 - **結論: 現時点では ImageCapability を実装できる経路が無い。** Ollama が画像生成を戻すか、Gemini の課金が設定されたら再開する
 
+---
+
+## 22. Sandbox（2026-11-08 追加スプリント）
+
+師匠の指示: 「では画像は保留。sandboxに移りましょう」、方式「ローカルの Docker」、Docker Desktop の起動「起動してよい」。Docker Desktop が新しいライセンスへの同意待ちで止まっていたため、師匠に同意を依頼（「同意しました」）。
+
+| 項目 | 決定 | 根拠 |
+| :--- | :--- | :--- |
+| アダプター | `DockerSandboxAdapter`（provider_name `"docker"`）。docker CLI を subprocess で呼ぶ（Python の依存の追加なし） | CLI は Windows / macOS / Linux 共通。Docker Engine の HTTP API は Windows で名前付きパイプになり httpx で扱えない |
+| CLI の解決 | `PlatformCompat.resolve_docker()`: PATH → Docker Desktop の既定の場所。見つけた bin を PATH の先頭に足す | 実測: macOS で CLI が PATH に無く、資格情報ヘルパーも同じ bin にあった（ADR-01: OS 固有の知識は compat に置く） |
+| 隔離（既定） | `--network none`・`--user 65534:65534`・`--read-only`・tmpfs の `/work` と `/tmp`（64MB）・`--memory 256m`（swap 無し）・`--cpus 1`・`--pids-limit 64`・`--cap-drop ALL`・`no-new-privileges`・`--rm`・`--pull never` | 実測ですべて効くことを確認 |
+| 時間切れ | `subprocess` の timeout → `docker kill <name>`。結果は `timed_out=True`・終了コード 137（例外にしない） | ToolRunner からモデルに結果として返せるように |
+| 生成ファイル | 包みのスクリプトが、終了時に作業ディレクトリのファイルを tar.gz にし、その回だけの印を付けて標準出力に書く。`files`（名前 → 中身）と `artifacts`（v3.0 互換）で返す。合計 10MB まで | `--rm` と tmpfs ではコンテナから後で取り出せないため |
+| 出力 | 標準出力・標準エラーは 1MB で切る。利用者のコードは base64 で包みに埋め込む | |
+| イメージ | 既定 `python:3.12-slim`（標準ライブラリのみ）。`ensure_image()` で先に取得 | 実行中にダウンロードしない |
+| 計測・ToolRunner | `OmniClient.sandbox` も計測。`ai.tools` の `CODE_EXECUTION` 代行はこれを使う | |
+
+**実測（2026-11-08・Mac・Docker Engine 29.9.2）**: 起動 0.1〜0.4 秒。ネットワーク遮断（Network is unreachable・名前解決も不可）、ルートへの書き込み不可、600MB の確保で 137、63 個目で fork が止まる、docker kill は 0.1 秒でコンテナも残らない。Ollama（gemma4:31b-cloud）が `CODE_EXECUTION` で書いたコードを Docker で実行し、1000 未満の素数の和 76127 を答えた（end-to-end）。
+
+**残留リスク**: コンテナはカーネルを共有するので、仮想マシンほどの隔離ではない（Docker Desktop では Linux VM の中で動く）。パッケージが要るコードは、利用者が自分のイメージを `image=` で渡す。
+

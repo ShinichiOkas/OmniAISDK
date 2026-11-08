@@ -156,7 +156,9 @@ class SandboxExecutionResult(BaseModel):
     stdout: str = ""
     stderr: str = ""
     exit_code: int = 0
-    artifacts: list[bytes] = Field(default_factory=list)
+    artifacts: list[bytes] = Field(default_factory=list)  # files の値（仕様書 v3.0 互換）
+    files: dict[str, bytes] = Field(default_factory=dict)  # 作業ディレクトリに作られたファイル（名前 → 中身）
+    timed_out: bool = False
     meta: ResponseMeta
 
 
