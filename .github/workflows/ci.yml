@@ -32,6 +32,11 @@ jobs:
       # Linux のランナーには Docker があるので、Sandbox の隔離を実物で確かめる
       - name: Live sandbox (Docker)
         if: runner.os == 'Linux'
+        shell: bash
         env:
           OMNI_LIVE_DOCKER: "1"
-        run: python -m pytest -m live tests/live/test_live_sandbox.py -rs
+        run: |
+          set -o pipefail
+          python -m pytest -m live tests/live/test_live_sandbox.py -rs | tee docker-live.txt
+          # 実行されたことと結果を、認証なしで読める注釈に残す
+          echo "::notice title=Live sandbox (Docker)::docker $(docker version --format '{{.Server.Version}}') / $(tail -n 1 docker-live.txt)"

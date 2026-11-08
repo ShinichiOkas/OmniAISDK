@@ -16,6 +16,7 @@ pytestmark = [
 
 @pytest.fixture(scope="module")
 def sb() -> DockerSandboxAdapter:
+    # OMNI_LIVE_DOCKER=1 のときに Docker が使えなければ、スキップではなく失敗にする（黙って通らないように）
     s = DockerSandboxAdapter()
     s.ensure_image()
     return s
