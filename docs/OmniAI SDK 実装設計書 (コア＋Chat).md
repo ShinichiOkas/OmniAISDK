@@ -928,3 +928,21 @@ Ollama:
 
 **付記**: Gemini の TTS（gemini-3.8-flash-tts）は日本語で動くことを実測したが、師匠の決定で採用しなかった。Gemini の画像生成は 429（quota）。Ollama の音声合成（phonon）は v0.40.9 以上・英語のみ。
 
+---
+
+## 21. Image の調査（2026-11-08・実装せず）
+
+師匠の指示: 「了解。Ollamaの調査から開始してください」、モデル「x/flux2-klein:4b（5.7GB）」。
+
+| 経路 | 結果（Mac・Ollama.app 0.40.6） |
+| :--- | :--- |
+| `/api/generate`（width / height / steps） | 400 "image generation models are not currently supported" |
+| `/v1/images/generations` | 404 |
+| `/api/chat` | 400 "does not support chat" |
+| CLI `ollama run x/flux2-klein:4b` | 同じエラー |
+
+- 原因: リリースノート v0.32.6（2026-08-04）「Experimental image generation has been temporarily removed. Continue using 0.32.5」。v0.40.15 まで復活の記載なし
+- 0.32.5 では decision モデル（§19、0.35.0 以上が必要）と両立しない
+- Gemini の画像生成（gemini-3.1-flash-image）は 429（quota・課金の設定が必要）
+- **結論: 現時点では ImageCapability を実装できる経路が無い。** Ollama が画像生成を戻すか、Gemini の課金が設定されたら再開する
+
