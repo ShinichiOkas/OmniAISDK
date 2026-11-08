@@ -176,12 +176,13 @@ def build_chat_body(
                 "type": "json_schema",
                 "json_schema": {"name": req.response_schema.__name__, "schema": schema, "strict": False},
             }
-        else:
-            if mode == "json_object":
-                body["response_format"] = {"type": "json_object"}
-            elif mode != "prompt":
-                raise InvalidRequestError(f"unknown response_format mode {mode!r}", provider=provider)
-            messages.insert(0, {"role": "system", "content": _schema_instruction(schema)})
+        elif mode == "json_object":
+            body["response_format"] = {"type": "json_object"}
+        elif mode != "prompt":
+            raise InvalidRequestError(f"unknown response_format mode {mode!r}", provider=provider)
+        # どの方式でもスキーマを指示文で添える。response_format を黙って捨てるサーバーがある
+        # （実測 2026-11-08: Ollama の /v1 は json_schema を無視して地の文を返した）
+        messages.insert(0, {"role": "system", "content": _schema_instruction(schema)})
     for key in _PASSTHROUGH:
         if key in opts:
             body[key] = opts[key]

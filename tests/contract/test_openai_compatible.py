@@ -262,10 +262,10 @@ def test_structured_output_mode(cls, base, fmt) -> None:
     if fmt == "json_schema":
         assert body["response_format"]["type"] == "json_schema"
         assert body["response_format"]["json_schema"]["schema"]["required"] == ["city", "temp"]
-        assert body["messages"][0]["role"] == "user"
-    else:  # json_object: スキーマは先頭の system で伝える
+    else:
         assert body["response_format"] == {"type": "json_object"}
-        assert body["messages"][0]["role"] == "system" and '"city"' in body["messages"][0]["content"]
+    # どの方式でもスキーマを指示文で添える（response_format を黙って捨てるサーバーがあるため）
+    assert body["messages"][0]["role"] == "system" and '"city"' in body["messages"][0]["content"]
 
 
 @respx.mock

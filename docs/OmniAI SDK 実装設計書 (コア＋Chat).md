@@ -1027,4 +1027,8 @@ Ollama:
 - 環境変数の `OMNI_<P>_<K>` は、名前のハイフンを `_` にする（`OMNI_OLLAMA_CLOUD_API_KEY`）
 - 設定: `[xai]` `[agnes]` `[openrouter]` `[ollama-cloud]` `[openai-compatible]`（`base_url` / `api_key`。キーは secrets.toml）。`doctor` はキーの有無と、OpenAI 互換サーバーの `/models` への到達を見る。メニューはキーの入力・接続先・Chat の順番とモデル（一覧が 30 件以下なら選択、それ以外は手入力）
 
-**未確認**: 5 つとも実物には繋いでいない。契約テストの応答は OpenAI の公開仕様に沿った合成データ。usage の有無、推論の項目名、ツール呼び出しの分割の仕方、Agnes の json_schema 対応、Ollama Cloud の /api/show の有無は、実物で確かめるまで推測。
+**実測（2026-11-08・Mac）**: キー無しで試せる OpenAI 互換サーバーとして、ローカルの Ollama 0.40.6 の `/v1`（gemma4:31b-cloud）に `openai-compatible` を繋いだ。テキスト・usage・ツール呼び出しの往復・ストリーム（本文とツール呼び出し）・非同期・構造化出力（3 方式）が動いた。`config.toml` → `omni-ai doctor`（`/v1/models` に到達）→ `from_config()` も通った。
+- 見つけたこと: **json_schema を送っても、サーバーが黙って無視して地の文を返した**（"21 degrees C"）。→ どの方式でもスキーマを先頭の system の指示文で添えるように変更（OpenRouter も非対応モデルでは response_format を捨てる、という先行の記録とも合う）
+- live テスト: `tests/live/test_live_openai_compatible.py`（`OMNI_LIVE_OPENAI_COMPATIBLE=<base_url>` と `..._MODEL`）
+
+**未確認**: xAI・Agnes・OpenRouter・Ollama Cloud は実物に繋いでいない（キーが無い）。契約テストの応答は OpenAI の公開仕様に沿った合成データ。各社の usage の有無、推論の項目名、ツール呼び出しの分割の仕方、Agnes の json_schema 対応、Ollama Cloud の /api/show の有無は、実物で確かめるまで推測。

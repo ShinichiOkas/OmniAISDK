@@ -83,7 +83,7 @@ OmniAISDK/
 | コア（例外・型・設定・OS差分吸収・HTTP 基盤・再試行・ルーター・テレメトリ・ToolRunner） | 実装済み |
 | Chat: Ollama（ネイティブ `/api/chat`） | 実装済み・実 API で確認済み（`gemma4:31b-cloud`） |
 | Chat: Google Gemini（`generateContent` v1beta） | 実装済み・実 API で確認済み（`gemini-3.1-flash-lite`。google_search は quota の都合で未確認） |
-| Chat: xAI / Agnes / OpenRouter / OpenAI 互換サーバー（`/chat/completions`）・Ollama Cloud（ネイティブ） | 実装済み・**偽物のテストのみ**（実物には未接続。実装設計書 §25） |
+| Chat: xAI / Agnes / OpenRouter / OpenAI 互換サーバー（`/chat/completions`）・Ollama Cloud（ネイティブ） | 実装済み。OpenAI 互換サーバーはローカル Ollama の `/v1` で実物確認済み。xAI・Agnes・OpenRouter・Ollama Cloud は**偽物のテストのみ**（キーが無い。実装設計書 §25） |
 | Embedding: Gemini / Ollama / fastembed（プロセス内・ONNX） | 実装済み・3 つとも実物で確認済み |
 | Search: ddgs（キー不要の横断検索） | 実装済み・実物で確認済み（Ollama の WEB_SEARCH 代行も end-to-end で確認） |
 | Rerank: fastembed（プロセス内・多言語クロスエンコーダー） | 実装済み・実物で確認済み（キー不要の RAG: 検索 → 埋め込み → 再順位付け） |
