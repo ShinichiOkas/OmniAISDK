@@ -1,7 +1,7 @@
 {
-  "sprint_id": "8ae92190-c6db-4452-a1c7-dc08fba812dd",
-  "status": "completed",
-  "goal": "インストールとコンフィグレーションの整備",
-  "created_at": "2026-11-07T15:31:05+09:00",
-  "agreement_path": ".pair-agent/agreements/install-config.md"
+  "sprint_id": "60b6b46e-2f01-4aab-ba10-cc208e05a903",
+  "status": "executing",
+  "goal": "Mnemo の ELLM 以外のプロバイダーに Chat で対応",
+  "created_at": "2026-11-08T15:30:00+09:00",
+  "agreement_path": ".pair-agent/agreements/more-chat-providers.md"
 }
