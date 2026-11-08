@@ -26,6 +26,9 @@ dependencies = [
     "anyio>=4.4.0",
 ]
 
+[project.scripts]
+omni-ai = "omni_ai.cli:main"
+
 [project.optional-dependencies]
 # プロセス内のローカル埋め込み（fastembed / ONNX）。onnxruntime はバイナリ wheel なのでコアには入れない
 local = ["fastembed>=0.4"]
