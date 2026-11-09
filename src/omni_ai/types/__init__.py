@@ -26,6 +26,7 @@ from .other import (
     VerdictResult,
 )
 from .tools import BuiltinTool, OmniTool, ToolCall, ToolDefinition, ToolSpec, normalize_json_schema, omni_tool
+from .web import FetchedImage, FetchedPage
 
 __all__ = [
     "AudioSpeechResponse",
@@ -37,6 +38,8 @@ __all__ = [
     "Citation",
     "ContentPart",
     "EmbeddingResponse",
+    "FetchedImage",
+    "FetchedPage",
     "FileRef",
     "FinishReason",
     "GeneratedImage",

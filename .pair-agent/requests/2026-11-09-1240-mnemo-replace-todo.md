@@ -1,6 +1,7 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
+- **全体の進捗（2026-11-09 16:30）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C〜1.H 未着手（0/11）・Phase 2〜4 未着手。次は Phase 1.C（検索 S2・S5）か Phase 2（ellm-proxy 側）。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
 - 方針の変更点（師匠 2026-11-09 の指示）:
   - **ELLM は除外**。ellm-proxy で Ollama として見せる外付けの経路にする（`ellm-proxy mnemo` の形で挟む）。
   - SDK 側は LLM サーバーの切り替えを **環境変数** で受ける仕組みにする（`ollama launch claude` と同じ発想）。
@@ -27,8 +28,8 @@
 
 ### 1.A Chat の底上げ（Ollama 経由で ellm-proxy と繋ぐ前提）
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
 | 1.1 | **ストリームしながらツールを回す** `ToolRunner.astream()`。`tool_call` / `tool_result` / `error` / `reset` のイベントを流す。上限に達したら要約で締める処理と、ツール結果の画像を見せ直す処理は呼び出し側から差し込める形にする | SDK | M | C2 | ✅ 完了 2026-11-09 14:20（`src/omni_ai/tools.py` に `astream()`・StreamEvent に `tool_result`/`tool_error`/`turn_complete`/`max_turns` を追加・tests/unit/test_tool_astream.py 4 件通過。`on_max_turns_summary=True` で Mnemo の max_rounds_fallback 相当の締めも用意） |
 | 1.2 | **スキーマ無しの JSON モード**: `response_format="json"`（json_object）の指定。拒まれたら指定を外して打ち直す処理（接続エラーでは打ち直さない）。寛容な JSON の取り出し `extract_json`（フェンスがどこにあっても拾う・末尾カンマ修復・切り詰め修復の呼び出し点）。**ELLM 専用ではない**: Mnemo の `_json.py` は xai / ollama / gemini / ellm の 4 系統で共通に使われ、Ollama の gemma4:31b で末尾カンマ事故（2026-10-12・6 件）、ELLM/Claude の `Extra data` 事故（6 日 208 件 incident）、Gemini でもフェンス事故（KG 0 ノード）が実測されている | SDK | S | C3 | ✅ 完了 2026-11-09 14:40（`src/omni_ai/_json_extract.py`・OpenAI 互換 codec で `parsed` を立てる・tests/unit/test_json_extract.py 9 件通過・OpenAI 互換の既存契約試験 41 件も通過） |
 | 1.3 | **無音の打ち切りと上流の冷却**: 最初の塊のあとの無音の打ち切り（`stream_idle_seconds`・既定 60s）と、上流が死んでいるときの冷却（`DeadUpstreamGate`・既定 30s）。エラー コード `llm_stream_idle` と `dead_upstream` を型に足す。**ELLM 専用ではない**: Mnemo の `dead_upstream.py` は OpenAI 互換全プロバイダ（xai / ollama / agnes / openrouter / custom）と Gemini で既に効いている（票 20261108_Failed_Turn_Keeps_Calling_Dead_Upstream_From_Background_Steps・票 20261108_Gemini_Provider_Has_No_Dead_Upstream_Gate）。失敗後の背景呼び出しがどのプロバイダでも死んだ上流を叩き続ける問題なので、SDK 共通の価値が高い | SDK | S〜M | C6 | ✅ 完了 2026-11-09 15:00（`src/omni_ai/_resilience.py` に `StreamIdleError`・`UpstreamUnreachableError`・`DeadUpstreamGate`・`with_idle_timeout`・tests/unit/test_resilience.py 7 件通過。環境変数 `OMNI_STREAM_IDLE_SECONDS`・`OMNI_DEAD_UPSTREAM_SECONDS` で変更可。既存アダプタへの差し込みは 3.6 の `OmniProvider` 包みで行う） |
@@ -38,57 +39,57 @@
 
 ### 1.B Web 取得（Capability 新設）
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.7 | **`WebFetchCapability`** を新設。`fetch(url, *, max_length, offset, ...) -> FetchedPage(markdown, title, final_url, mime_type, images, links, truncated)`。同期と非同期 | SDK | L | F1 |
-| 1.8 | **取り出し方の既定を選ぶ**: readability＋markdownify（本体の経路）を既定にする。trafilatura は選べる形で添える。**既定を決める理由**: Mnemo 本体の 35 箇所がこちらで、wiseman の引用照合（offset とハッシュ）は独立に残せるため | SDK | M | F2 |
-| 1.9 | **接続先の判定（SSRF 対策）** の差し込み口: `url_filter: Callable[[str], str \| None]`。リダイレクトの各段で呼ぶ | SDK | S | F3 |
-| 1.10 | **画像の抽出とダウンロード**: 画像の一覧・点数づけ・上限（同時 4・1 枚 10MB・合計 20MB）。点数づけは差し替え可能（Mnemo の chrome-token スコアを後で差し込む） | SDK | M | F4 |
-| 1.11 | **文書 URL の連結**: バイト列を `DocumentParser` に回す（取得は WebFetch、解析は Parser） | SDK | S | F5 |
-| 1.12 | **extras `[web]` の宣言**: `httpx[http2]`・`beautifulsoup4`・`readability-lxml`・`markdownify` | SDK | S | — |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.7 | **`WebFetchCapability`** を新設。`fetch(url, *, max_length, offset, ...) -> FetchedPage(markdown, title, final_url, mime_type, images, links, truncated)`。同期と非同期 | SDK | L | F1 | ✅ 完了 2026-11-09 16:30（`src/omni_ai/providers/web_fetch/__init__.py` に `HttpxWebFetchAdapter`・自前リダイレクト・tests/unit/test_web_fetch.py 9 件通過） |
+| 1.8 | **取り出し方の既定を選ぶ**: readability＋markdownify（本体の経路）を既定にする。trafilatura は選べる形で添える。**既定を決める理由**: 実運用の本体の 35 箇所がこちらで、wiseman の引用照合（offset とハッシュ）は独立に残せるため | SDK | M | F2 | ✅ 完了 2026-11-09 16:30（1.7 と同時。`extractor="readability"` 既定・`trafilatura` 選択可） |
+| 1.9 | **接続先の判定（SSRF 対策）** の差し込み口: `url_filter: Callable[[str], str \| None]`。リダイレクトの各段で呼ぶ | SDK | S | F3 | ✅ 完了 2026-11-09 16:30（`url_filter` をリダイレクトの各段と画像ダウンロードで呼ぶ・`test_fetch_follows_redirects_and_runs_filter_each_hop` で確認） |
+| 1.10 | **画像の抽出とダウンロード**: 画像の一覧・点数づけ・上限（同時 4・1 枚 10MB・合計 20MB）。点数づけは差し替え可能（装飾を落として本文画像を優先する chrome-token スコアを後で差し込む） | SDK | M | F4 | ✅ 完了 2026-11-09 16:30（`_score_image`・`_CHROME_TOKENS`・同時 4/1枚10MB/合計20MB・`test_fetch_images_downloads_bytes` で確認） |
+| 1.11 | **文書 URL の連結**: バイト列を `DocumentParser` に回す（取得は WebFetch、解析は Parser） | SDK | S | F5 | ✅ 完了 2026-11-09 16:30（文書 MIME は `raw_bytes` に残す・tests/unit/test_web_fetch_doc_chain.py で `PyPDFDocumentParser` に渡せることを確認） |
+| 1.12 | **extras `[web]` の宣言**: `httpx[http2]`・`beautifulsoup4`・`readability-lxml`・`markdownify` | SDK | S | — | ✅ 完了 2026-11-09 16:30（pyproject.toml に `web = ["beautifulsoup4>=4.12", "markdownify>=0.11", "readability-lxml>=0.8"]`、`httpx[http2]` は既定依存） |
 
 ### 1.C 検索の底上げ
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.13 | **画像検索** を `DDGSSearchAdapter` に足す（`search_images()`）。または画像用の結果型 `ImageSearchItem(image_url, thumbnail, width, height, source)` を足す | SDK | S〜M | S2 |
-| 1.14 | **最小間隔と中断の検査点**: `min_interval_seconds` と `cancel_check: Callable[[], bool]` の差し込み口を `BaseSearchAdapter` に足す | SDK | S | S5 |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.13 | **画像検索** を `DDGSSearchAdapter` に足す（`search_images()`）。または画像用の結果型 `ImageSearchItem(image_url, thumbnail, width, height, source)` を足す | SDK | S〜M | S2 | ⬜ 未着手 |
+| 1.14 | **最小間隔と中断の検査点**: `min_interval_seconds` と `cancel_check: Callable[[], bool]` の差し込み口を `BaseSearchAdapter` に足す | SDK | S | S5 | ⬜ 未着手 |
 
 ### 1.D 埋め込みの底上げ
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.15 | **numpy で返す道**: `embed_array()`（または `provider_options` の `output="numpy"`）で float32 の `np.ndarray` を返す。既存の list 返しは残す | SDK | S | E1 |
-| 1.16 | **トークナイザの共有**: 2 本目のモデルを開くときに 1 本目のトークナイザを使い回す道（Mnemo の `_donor_tokenizer` 相当）。GIL を 1.2 秒握る問題を避ける | SDK | S | E2 |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.15 | **numpy で返す道**: `embed_array()`（または `provider_options` の `output="numpy"`）で float32 の `np.ndarray` を返す。既存の list 返しは残す | SDK | S | E1 | ⬜ 未着手 |
+| 1.16 | **トークナイザの共有**: 2 本目のモデルを開くときに 1 本目のトークナイザを使い回す道（Mnemo の `_donor_tokenizer` 相当）。GIL を 1.2 秒握る問題を避ける | SDK | S | E2 | ⬜ 未着手 |
 
 ### 1.E 文字起こしの底上げ
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.17 | **逐次の出力**: `transcribe_iter()`（区間を順に返す）と `on_progress: Callable[[float], None]`（0.0〜1.0）を `FasterWhisperAudioAdapter` に足す。faster-whisper は区間を生成器で返すのでそれを外に出す | SDK | S〜M | T1 |
-| 1.18 | **モデルのパス指定**: 既存の `~/.mnemo_recall/models/whisper-medium-ct2` を `model` に渡せるか確かめる。渡せないなら `model_path` を足す | SDK | S | T3 |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.17 | **逐次の出力**: `transcribe_iter()`（区間を順に返す）と `on_progress: Callable[[float], None]`（0.0〜1.0）を `FasterWhisperAudioAdapter` に足す。faster-whisper は区間を生成器で返すのでそれを外に出す | SDK | S〜M | T1 | ⬜ 未着手 |
+| 1.18 | **モデルのパス指定**: 既存の `~/.mnemo_recall/models/whisper-medium-ct2` を `model` に渡せるか確かめる。渡せないなら `model_path` を足す | SDK | S | T3 | ⬜ 未着手 |
 
 ### 1.F 音声合成の底上げ
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.19 | **WAV 出力**: `EdgeTTSAudioAdapter.format="wav"` を足す（ffmpeg で MP3 → WAV 変換、または pymp3 でデコード→wave で書く） | SDK | S | A1 |
-| 1.20 | **読み上げの記法**（強調・間・音量・話速・高さ）を受ける: Markdown 風・HTML 風・SSML の 3 書式のどれかに寄せる。既定は SSML（EdgeTTS が理解する）。記法ごとに区間分けして合成し、つないで WAV にする | SDK | M | A1 |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.19 | **WAV 出力**: `EdgeTTSAudioAdapter.format="wav"` を足す（ffmpeg で MP3 → WAV 変換、または pymp3 でデコード→wave で書く） | SDK | S | A1 | ⬜ 未着手 |
+| 1.20 | **読み上げの記法**（強調・間・音量・話速・高さ）を受ける: Markdown 風・HTML 風・SSML の 3 書式のどれかに寄せる。既定は SSML（EdgeTTS が理解する）。記法ごとに区間分けして合成し、つないで WAV にする | SDK | M | A1 | ⬜ 未着手 |
 
 ### 1.G MCP の差し込み口（最小限）
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.21 | **SSE の通信路** を `MCPClientAdapter` に足す（stdio と streamable-http と SSE） | SDK | S | M1 |
-| 1.22 | **auth の差し込み口** `auth: httpx.Auth`（OAuth 本体は Mnemo に残す） | SDK | S | M2 |
-| 1.23 | **elicitation の呼び戻し** と **通知の呼び戻し** の差し込み口 | SDK | S | M3・M4 |
-| 1.24 | 複数サーバー管理（マネージャー）は **Mnemo に残す**。SDK には足さない（師匠判断が要るなら Phase 5 の判断に戻す） | — | — | M5 |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.21 | **SSE の通信路** を `MCPClientAdapter` に足す（stdio と streamable-http と SSE） | SDK | S | M1 | ⬜ 未着手 |
+| 1.22 | **auth の差し込み口** `auth: httpx.Auth`（OAuth 本体は Mnemo に残す） | SDK | S | M2 | ⬜ 未着手 |
+| 1.23 | **elicitation の呼び戻し** と **通知の呼び戻し** の差し込み口 | SDK | S | M3・M4 | ⬜ 未着手 |
+| 1.24 | 複数サーバー管理（マネージャー）は **Mnemo に残す**。SDK には足さない（師匠判断が要るなら Phase 5 の判断に戻す） | — | — | M5 | ⏸ 対象外（師匠判断済み・推奨 3） |
 
 ### 1.H 画像生成（SDK）
 
-| # | 中身 | 置き場 | 大きさ | 票 |
-|---|---|---|---|---|
-| 1.25 | 画像生成は ellm-proxy の向こうで動くので、SDK 側は Ollama の画像生成の口（`/api/generate` の画像モード、または `/v1/images/generations` の OpenAI 互換）が開いていればよい。**プロキシの対応方針を師匠に確認**: ellm-proxy が OpenAI 互換で画像生成を返すなら `OpenAICompatibleImageAdapter` を SDK に 1 本足す（S） | SDK | S | I1 |
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 1.25 | 画像生成は ellm-proxy の向こうで動くので、SDK 側は Ollama の画像生成の口（`/api/generate` の画像モード、または `/v1/images/generations` の OpenAI 互換）が開いていればよい。**プロキシの対応方針を師匠に確認**: ellm-proxy が OpenAI 互換で画像生成を返すなら `OpenAICompatibleImageAdapter` を SDK に 1 本足す（S） | SDK | S | I1 | ⬜ 未着手 |
 
 ---
 

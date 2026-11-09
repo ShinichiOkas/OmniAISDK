@@ -16,6 +16,7 @@ from .types import (
     ChatMessage,
     ChatResponse,
     EmbeddingResponse,
+    FetchedPage,
     ImageResponse,
     JudgeQuestion,
     JudgeResponse,
@@ -44,6 +45,7 @@ __all__ = [
     "SandboxCapability",
     "SearchCapability",
     "ToolChoice",
+    "WebFetchCapability",
 ]
 
 ToolChoice = Literal["auto", "none", "required"] | str
@@ -353,6 +355,44 @@ class SandboxCapability(Capability):
     async def aexecute_python(
         self, code: str, *, timeout_seconds: int = 30, **provider_options: Any
     ) -> SandboxExecutionResult: ...
+
+
+class WebFetchCapability(Capability):
+    """URL → Markdown（本文抽出つき）。extras ``[web]`` が必要。
+
+    - ``max_length`` で本文の長さを切る（``offset`` で続きを読む）。切ったら ``truncated=True`` にする
+    - ``fetch_images=True`` で本文中の画像を実際にダウンロードし、``images[].data_base64`` に入れる
+    - ``url_filter(url) -> str | None``: リダイレクトの各段で呼ばれる。``None`` 以外（理由の文字列）を返すと止める（SSRF の差し込み口）
+    - ``extractor="readability"|"trafilatura"``: 本文抽出器（既定 readability + markdownify）
+    """
+
+    @abstractmethod
+    def fetch(
+        self,
+        url: str,
+        *,
+        max_length: int = 50_000,
+        offset: int = 0,
+        fetch_images: bool = False,
+        max_images: int = 10,
+        extractor: Literal["readability", "trafilatura"] = "readability",
+        timeout_seconds: float = 30.0,
+        **provider_options: Any,
+    ) -> FetchedPage: ...
+
+    @abstractmethod
+    async def afetch(
+        self,
+        url: str,
+        *,
+        max_length: int = 50_000,
+        offset: int = 0,
+        fetch_images: bool = False,
+        max_images: int = 10,
+        extractor: Literal["readability", "trafilatura"] = "readability",
+        timeout_seconds: float = 30.0,
+        **provider_options: Any,
+    ) -> FetchedPage: ...
 
 
 class MCPCapability(Capability):

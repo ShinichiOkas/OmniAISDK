@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         XAIChatAdapter,
     )
     from .pypdf import PyPDFDocumentParser
+    from .web_fetch import HttpxWebFetchAdapter
 
 _LAZY = {
     "DockerSandboxAdapter": ".docker",
@@ -51,6 +52,7 @@ _LAZY = {
     "OpenRouterChatAdapter": ".openai_compatible",
     "OllamaEmbeddingAdapter": ".ollama.embedding",
     "OllamaJudgeAdapter": ".ollama.judge",
+    "HttpxWebFetchAdapter": ".web_fetch",
 }
 
 __all__ = [
@@ -64,6 +66,7 @@ __all__ = [
     "FasterWhisperAudioAdapter",
     "GeminiChatAdapter",
     "GeminiEmbeddingAdapter",
+    "HttpxWebFetchAdapter",
     "MCPClientAdapter",
     "MarkItDownDocumentParser",
     "MimeRoutingDocumentParser",
