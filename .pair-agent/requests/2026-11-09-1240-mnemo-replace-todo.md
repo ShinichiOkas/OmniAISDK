@@ -1,7 +1,7 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-09 17:55）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F〜1.H 未着手（0/5）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
+- **全体の進捗（2026-11-09 18:10）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G〜1.H 未着手（0/3）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
 - **Phase 1.D の互換検証（師匠の依頼 2026-11-09 17:00）**: 合成データで bit 単位の一致を確認済み。本物のモデル・実データでの余弦 1-1e-6 一致の確認は Phase 3.1（Mnemo 側の差し替え時）で合わせて行う。
 - **未着手の票**:
   - `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験 6 件落ち・1.C 以降と無関係）
@@ -77,8 +77,8 @@
 
 | # | 中身 | 置き場 | 大きさ | 票 | 状態 |
 |---|---|---|---|---|---|
-| 1.19 | **WAV 出力**: `EdgeTTSAudioAdapter.format="wav"` を足す（ffmpeg で MP3 → WAV 変換、または pymp3 でデコード→wave で書く） | SDK | S | A1 | ⬜ 未着手 |
-| 1.20 | **読み上げの記法**（強調・間・音量・話速・高さ）を受ける: Markdown 風・HTML 風・SSML の 3 書式のどれかに寄せる。既定は SSML（EdgeTTS が理解する）。記法ごとに区間分けして合成し、つないで WAV にする | SDK | M | A1 | ⬜ 未着手 |
+| 1.19 | **WAV 出力**: `EdgeTTSAudioAdapter.format="wav"` を足す（ffmpeg で MP3 → WAV 変換、または pymp3 でデコード→wave で書く） | SDK | S | A1 | ✅ 完了 2026-11-09 18:10（`response_format="wav"` を受ける道を追加。ffmpeg を PATH から探し、MP3 を 24kHz モノラルの PCM16 に落として標準 `wave` で書く。ffmpeg が無ければ `UnsupportedFeatureError`。tests/unit/test_edge_tts_1f.py 10 件通過） |
+| 1.20 | **読み上げの記法**（強調・間・音量・話速・高さ）を受ける: Markdown 風・HTML 風・SSML の 3 書式のどれかに寄せる。既定は SSML（EdgeTTS が理解する）。記法ごとに区間分けして合成し、つないで WAV にする | SDK | M | A1 | ✅ 完了 2026-11-09 18:10（`src/omni_ai/providers/edge_tts/_markup.py`。SSML（`<prosody>/<emphasis>/<break>`）・HTML 風（`<b>/<strong>/<em>/<break>`）・Markdown 風（`**強調**`・`[pause:500ms]`・`[間:500ms]`）を解釈し `SpeechSpan` に割る。`provider_options['edge-tts']['speak_markup']` で明示できる・無ければ形から推測。記法ごとに区間を合成 → PCM 連結 → WAV にする） |
 
 ### 1.G MCP の差し込み口（最小限）
 

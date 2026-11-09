@@ -2,14 +2,20 @@
 
 - extras ``[audio]``
 - 既定の声は ja-JP-NanamiNeural。話速 -50〜+100%、声の高さ -50〜+50Hz
-- 出力は MP3 のみ（実測: edge-tts は MP3 を返す。他の形式は UnsupportedFeatureError）
+- 出力: ``mp3``（既定）または ``wav``（ffmpeg が ``PATH`` にあれば MP3 → WAV 変換）
+- 記法（1.20）: ``speak_text=`` に SSML・HTML 風・Markdown 風のいずれかで渡すと、
+  区切りごとにスタイル（強調・間・音量・話速・高さ）を変えて合成し、連結した WAV を返す
 - ⚠ 読み上げる文章は Microsoft のオンラインサービスへ送られる
 """
 
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
+import shutil
+import subprocess  # noqa: S404 - ffmpeg の呼び出しに必要
+import wave
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar, Literal
 
@@ -22,8 +28,9 @@ from ...exceptions import (
 )
 from ...types import AudioSpeechResponse, ResponseMeta
 from .._audio_base import SpeechOnlyAudio
+from ._markup import SpeechSpan, parse_speech_markup
 
-__all__ = ["DEFAULT_VOICE", "EdgeTTSAudioAdapter"]
+__all__ = ["DEFAULT_VOICE", "EdgeTTSAudioAdapter", "SpeechSpan", "parse_speech_markup"]
 
 logger = logging.getLogger("omni_ai")
 
@@ -31,6 +38,52 @@ DEFAULT_VOICE = "ja-JP-NanamiNeural"
 RATE_RANGE = (-50, 100)  # %
 PITCH_RANGE = (-50, 50)  # Hz
 VOLUME_RANGE = (-100, 100)  # %
+
+_WAV_SR = 24000  # 既定のサンプルレート（ffmpeg が無いときのプレースホルダ無音の作りに使う）
+
+
+def _ffmpeg() -> str | None:
+    return shutil.which("ffmpeg")
+
+
+def _decode_mp3_to_pcm16_mono(mp3_bytes: bytes) -> tuple[int, bytes]:
+    """MP3 を PCM16 モノラルに落とす。ffmpeg が無ければ UnsupportedFeatureError。"""
+    exe = _ffmpeg()
+    if exe is None:
+        raise UnsupportedFeatureError(
+            "WAV output and speak_markup require ffmpeg on PATH", provider="edge-tts"
+        )
+    proc = subprocess.run(  # noqa: S603 - 入力は Microsoft からの MP3、exe は PATH 解決後
+        [exe, "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+         "-f", "s16le", "-ac", "1", "-ar", str(_WAV_SR), "pipe:1"],
+        input=mp3_bytes, capture_output=True, check=False,
+    )
+    if proc.returncode != 0:
+        raise ProviderConnectionError(
+            f"ffmpeg failed to decode MP3: {proc.stderr.decode('utf-8', 'replace')}",
+            provider="edge-tts",
+        )
+    return _WAV_SR, proc.stdout
+
+
+def _concat_pcm_to_wav(segments: list[tuple[int, int, bytes]]) -> bytes:
+    """``[(sample_rate, length_bytes, pcm_or_empty)]`` を連結して WAV バイト列にする。
+
+    ``pcm_or_empty`` が空のときは無音（``length_bytes`` 分の 0x00）を書き出す。
+    """
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(_WAV_SR)
+        for _sr, nbytes, pcm in segments:
+            if pcm:
+                w.writeframes(pcm)
+            else:
+                # 2 バイト（int16）単位に揃える
+                silence = b"\x00" * (nbytes if nbytes % 2 == 0 else nbytes + 1)
+                w.writeframes(silence)
+    return buf.getvalue()
 
 
 def _edge_tts() -> Any:
@@ -78,6 +131,26 @@ class EdgeTTSAudioAdapter(SpeechOnlyAudio):
                 )
         return int(rate), int(pitch), int(volume)
 
+    async def _synth_mp3(
+        self, text: str, voice: str, rate: int, pitch: int, volume: int
+    ) -> bytes:
+        """EdgeTTS に 1 回だけ投げて、返ってきた MP3 のバイト列を集める。"""
+        edge = _edge_tts()
+        comm = edge.Communicate(
+            text, voice,
+            rate=_signed(rate, "%"),
+            pitch=_signed(pitch, "Hz"),
+            volume=_signed(volume, "%"),
+            proxy=self.proxy,
+            connect_timeout=self.connect_timeout,
+            receive_timeout=self.receive_timeout,
+        )
+        chunks: list[bytes] = []
+        async for chunk in comm.stream():
+            if chunk.get("type") == "audio":
+                chunks.append(chunk["data"])
+        return b"".join(chunks)
+
     async def aspeak(
         self,
         text: str,
@@ -89,38 +162,69 @@ class EdgeTTSAudioAdapter(SpeechOnlyAudio):
     ) -> AudioSpeechResponse:
         if not text or not text.strip():
             raise InvalidRequestError("text is empty", provider=self.provider_name)
-        if response_format != "mp3":
+        if response_format not in ("mp3", "wav"):
             raise UnsupportedFeatureError(
-                f"edge-tts returns mp3 only (requested {response_format})", provider=self.provider_name
+                f"edge-tts returns mp3 or wav only (requested {response_format})",
+                provider=self.provider_name,
             )
         opts = provider_options.get(self.provider_name, {})
         rate, pitch, volume = self._check(
             opts.get("rate", self.rate), opts.get("pitch", self.pitch), opts.get("volume", self.volume)
         )
         use_voice = voice or self.voice
-        edge = _edge_tts()
-        comm = edge.Communicate(
-            text,
-            use_voice,
-            rate=_signed(rate, "%"),
-            pitch=_signed(pitch, "Hz"),
-            volume=_signed(volume, "%"),
-            proxy=self.proxy,
-            connect_timeout=self.connect_timeout,
-            receive_timeout=self.receive_timeout,
-        )
-        chunks: list[bytes] = []
+        speak_markup = opts.get("speak_markup")  # 'ssml'|'html'|'markdown'|'plain'|None
+
         try:
-            async for chunk in comm.stream():
-                if chunk.get("type") == "audio":
-                    chunks.append(chunk["data"])
+            if response_format == "mp3" and speak_markup is None:
+                mp3 = await self._synth_mp3(text, use_voice, rate, pitch, volume)
+                return AudioSpeechResponse(
+                    audio_bytes=mp3,
+                    format="mp3",
+                    meta=ResponseMeta(
+                        provider=self.provider_name, model=use_voice, estimated_cost_usd=0.0
+                    ),
+                )
+            # WAV 出力か記法ありは、区間ごとに合成→PCM に落として連結→WAV（または MP3 に戻す）
+            spans = parse_speech_markup(text, speak_markup)
+            if not spans:
+                raise InvalidRequestError(
+                    "after parsing markup there is no text to speak", provider=self.provider_name
+                )
+            segments: list[tuple[int, int, bytes]] = []  # (sample_rate, pcm16_bytes, _)
+            for sp in spans:
+                if sp.kind == "pause":
+                    segments.append((_WAV_SR, _WAV_SR * 2 * sp.pause_ms // 1000, b""))
+                    continue
+                r = max(RATE_RANGE[0], min(RATE_RANGE[1], rate + sp.rate))
+                p = max(PITCH_RANGE[0], min(PITCH_RANGE[1], pitch + sp.pitch))
+                v = max(VOLUME_RANGE[0], min(VOLUME_RANGE[1], volume + sp.volume))
+                mp3_seg = await self._synth_mp3(sp.text, use_voice, r, p, v)
+                sr, pcm = _decode_mp3_to_pcm16_mono(mp3_seg)
+                segments.append((sr, len(pcm), pcm))
+            wav_bytes = _concat_pcm_to_wav(segments)
+            if response_format == "wav":
+                return AudioSpeechResponse(
+                    audio_bytes=wav_bytes,
+                    format="wav",
+                    meta=ResponseMeta(
+                        provider=self.provider_name, model=use_voice, estimated_cost_usd=0.0
+                    ),
+                )
+            # 記法ありで MP3 を要求されたときは、連結した WAV をそのまま返す（MP3 の再エンコードはしない）
+            # 代わりに **WAV のバイト列を MP3 形式として返す**のは意味を変えるので禁じる。
+            # 既定の挙動: MP3 要求 + 記法ありは、記法を無視して従来の MP3 合成に落とす。
+            mp3 = await self._synth_mp3(text, use_voice, rate, pitch, volume)
+            return AudioSpeechResponse(
+                audio_bytes=mp3,
+                format="mp3",
+                meta=ResponseMeta(
+                    provider=self.provider_name, model=use_voice, estimated_cost_usd=0.0
+                ),
+            )
+        except OmniError:
+            raise
         except Exception as exc:
             raise self._map(exc, use_voice) from exc
-        return AudioSpeechResponse(
-            audio_bytes=b"".join(chunks),
-            format="mp3",
-            meta=ResponseMeta(provider=self.provider_name, model=use_voice, estimated_cost_usd=0.0),
-        )
 
     def _map(self, exc: Exception, voice: str) -> OmniError:
         name = type(exc).__name__
