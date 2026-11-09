@@ -275,8 +275,22 @@ def parse_chat_response(data: Mapping[str, Any], req: ChatRequest, *, provider: 
     choice = choices[0]
     msg = choice.get("message") or {}
     calls = [_tool_call(tc) for tc in msg.get("tool_calls") or []]
+    content = msg.get("content") or None
+    # JSON モード（``response_schema`` あり、または ``provider_options['response_format']='json_object'/'json'``）
+    # では ``parsed`` を立てる。寛容な取り出し（フェンス剥がし・末尾カンマ修復）を使う。
+    parsed: Any = None
+    opts = req.options
+    rf_mode = opts.get("response_format")
+    if content and (req.response_schema is not None or rf_mode in ("json_object", "json", "json_schema")):
+        from ..._json_extract import parse_json_response
+
+        try:
+            parsed = parse_json_response(content)
+        except Exception:
+            parsed = None  # 本文の text はそのまま残す
     return ChatResponse(
-        content=msg.get("content") or None,
+        content=content,
+        parsed=parsed,
         reasoning=_reasoning(msg),
         tool_calls=calls,
         finish_reason=map_finish(choice.get("finish_reason"), bool(calls)),
