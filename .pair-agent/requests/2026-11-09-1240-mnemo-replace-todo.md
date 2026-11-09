@@ -1,7 +1,7 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-10 00:55）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G 完了（3/3・1.24 は Mnemo に残す方針なので SDK では空）・Phase 1.H 未着手（0/1）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外・選択肢 A・2026-11-09 承認）を反映済み。
+- **全体の進捗（2026-11-10 01:00）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G 完了（3/3・1.24 は Mnemo に残す方針なので SDK では空）・Phase 1.H ⏸ 保留（優先度低・師匠判断）・Phase 2〜4 未着手。**師匠判断 4 点とも確定**（1 推奨両方開け・2 推奨独立リポ・3 選択肢 A（MCP 対象外）・4 Mnemo に残す）。
 - **Phase 1.D の互換検証（師匠の依頼 2026-11-09 17:00）**: 合成データで bit 単位の一致を確認済み。本物のモデル・実データでの余弦 1-1e-6 一致の確認は Phase 3.1（Mnemo 側の差し替え時）で合わせて行う。
 - **未着手の票**:
   - `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験 6 件落ち・1.C 以降と無関係）
@@ -93,7 +93,7 @@
 
 | # | 中身 | 置き場 | 大きさ | 票 | 状態 |
 |---|---|---|---|---|---|
-| 1.25 | 画像生成は ellm-proxy の向こうで動くので、SDK 側は Ollama の画像生成の口（`/api/generate` の画像モード、または `/v1/images/generations` の OpenAI 互換）が開いていればよい。**プロキシの対応方針を師匠に確認**: ellm-proxy が OpenAI 互換で画像生成を返すなら `OpenAICompatibleImageAdapter` を SDK に 1 本足す（S） | SDK | S | I1 | ⬜ 未着手 |
+| 1.25 | 画像生成は ellm-proxy の向こうで動くので、SDK 側は Ollama の画像生成の口（`/api/generate` の画像モード、または `/v1/images/generations` の OpenAI 互換）が開いていればよい。ellm-proxy は OpenAI 互換 `/v1/images/generations` も開ける方針（師匠決定 1）。`OpenAICompatibleImageAdapter` を SDK に 1 本足す（S） | SDK | S | I1 | ⏸ 保留 2026-11-10 01:00（優先度低・師匠判断。Phase 2.2 の ellm-proxy 側実装と合わせて次セッション以降） |
 
 ---
 
@@ -240,13 +240,9 @@ Phase 4  --- 試験・差し替え・依存の掃除
 
 **合計の目安**: 約 **80H + L（WebFetch）**。直列で 10〜15 セッション、並行できるものを並行すれば 5〜8 セッション。WebFetch（1.7）は 1 本で一番大きい。
 
-## 師匠に決めてもらいたいこと（4 点）
+## 師匠の決定（2026-11-10 01:00・4 点とも確定）
 
-1. **ellm-proxy の API 形式**: Ollama ネイティブ API（`/api/chat` ほか）と OpenAI 互換 API（`/v1/chat/completions` ほか）のどちらを主にするか。
-   - 推奨: **両方開ける**。Chat は Ollama ネイティブ（モデル一覧の `/api/tags` が効くため）。埋め込み・画像生成・検索は OpenAI 互換の形に揃える。
-2. **ellm-proxy の置き場（リポジトリ）**: 新しい独立リポジトリにするか、OmniAISDK の中の optional extras にするか。
-   - 推奨: **独立リポジトリ `ellm-proxy`**。社内 lib への依存を OmniAISDK から切り離す（OSS 化の余地）。
-3. **MCP を置き換えの対象にするか**: Mnemo のマネージャーを残して SDK には差し込み口だけ足すか、全部 SDK に寄せるか。
-   - 推奨: **対象外**（Mnemo のマネージャーを残す）。
-4. **学術検索・ライブラリ検索・Recall リアルタイム**: Mnemo に残すか、SDK のアダプターにして出すか。
-   - 推奨: **Mnemo に残す**。
+1. **ellm-proxy の API 形式**: ✅ 推奨採用 — **両方開ける**。Chat は Ollama ネイティブ（モデル一覧の `/api/tags` が効くため）。埋め込み・画像生成・検索は OpenAI 互換の形に揃える。
+2. **ellm-proxy の置き場（リポジトリ）**: ✅ 推奨採用 — **独立リポジトリ `ellm-proxy`**。社内 lib への依存を OmniAISDK から切り離す（OSS 化の余地）。既存の `C:\Users\0000950207\work\ellm-proxy\` を使う。
+3. **MCP を置き換えの対象にするか**: ✅ 推奨採用（選択肢 A・2026-11-09 承認済み）— **対象外**（Mnemo のマネージャーを残す。SDK は 1 接続分の低水準の口だけ）。
+4. **学術検索・ライブラリ検索・Recall リアルタイム**: ✅ **Mnemo に残す**。SDK のアダプターにはしない。
