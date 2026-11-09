@@ -82,10 +82,26 @@ class ChatResponse(BaseModel):
 
 
 class StreamEvent(BaseModel):
-    type: Literal["text_delta", "reasoning_delta", "tool_call", "citation", "message_complete"]
+    type: Literal[
+        "text_delta",
+        "reasoning_delta",
+        "tool_call",
+        "citation",
+        "message_complete",
+        # ToolRunner.astream だけが流す追加イベント（プロバイダのストリームには出てこない）
+        "tool_result",     # 内部ツールの実行が済んだ
+        "tool_error",       # 内部ツールが例外で返した
+        "turn_complete",   # 1 ターンの最後（ツール呼び出しも含めて片付いた）
+        "max_turns",        # 上限に達したあとの締めの要約を流し始めた
+    ]
     delta_text: str = ""
     tool_call: ToolCall | None = None
     citation: Citation | None = None
     finish_reason: FinishReason | None = None
     response: ChatResponse | None = None
     meta: ResponseMeta | None = None
+    # tool_result / tool_error のときに入る
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    tool_output: str | None = None
+    tool_error_message: str | None = None

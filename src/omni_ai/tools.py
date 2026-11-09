@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal
 
@@ -19,6 +19,7 @@ from .types import (
     ChatResponse,
     OmniTool,
     ResponseMeta,
+    StreamEvent,
     ToolCall,
     ToolDefinition,
     ToolSpec,
@@ -272,4 +273,92 @@ class ToolRunner:
             f"tool loop exceeded max_turns={self.max_turns}",
             provider=self.chat.provider_name,
             partial_result=partial,
+        )
+
+    # ------------------------------------------------------------------ ストリームしながらツール
+
+    async def astream(
+        self,
+        messages: Sequence[ChatMessage],
+        tools: Sequence[ToolSpec],
+        *,
+        on_max_turns_summary: bool = False,
+        **opts: Any,
+    ) -> AsyncIterator[StreamEvent]:
+        """ストリームしながらツールを回す。チャンク・ツール呼び出し・ツール結果を順に流す。
+
+        流れるイベント:
+          - ``text_delta`` / ``reasoning_delta``: プロバイダから届いた断片
+          - ``tool_call``: モデルがツールを呼ぼうとしている
+          - ``message_complete``: 1 ターンのプロバイダ応答が完結した（内部ツールの実行はこの直後）
+          - ``tool_result`` / ``tool_error``: 内部ツールの実行結果（名前・id・出力つき）
+          - ``turn_complete``: 1 ターンの全体が片付いた（ツール結果まで履歴に積んだ）
+          - ``max_turns``: 上限に達した（この後、締めの要約を 1 回だけ流して終わる。無効なら流さない）
+
+        - 内部ツール（``@omni_tool``）は実行する。外部ツール（``ToolDefinition``）は呼び出し側が実行する
+          （この astream は内部ツールのうしろで止まらず、外部ツール呼び出しは ``tool_call`` を流して
+          ターンを閉じ、呼び出し側が履歴に結果を足して再度 astream を呼ぶ想定）
+        - ``on_max_turns_summary=True`` にすると、上限に達したあと 1 回だけ **ツール無しの応答** を
+          ストリームで流す（上限に達した後の「ツール無しの締め」。流し終わると ``turn_complete`` で閉じる）
+        """
+        api_tools, handlers, external = self._resolve(tools, use_async=True)
+        history = list(messages)
+        metas: list[ResponseMeta] = []
+
+        for turn in range(1, self.max_turns + 1):
+            final_response: ChatResponse | None = None
+            async for event in self.chat.astream(history, tools=api_tools, **opts):
+                yield event
+                if event.type == "message_complete" and event.response is not None:
+                    final_response = event.response
+            if final_response is None:
+                return
+            metas.append(final_response.meta)
+            history.append(final_response.to_message())
+
+            if not final_response.tool_calls:
+                yield StreamEvent(type="turn_complete", response=final_response, meta=final_response.meta)
+                return
+
+            internal = [c for c in final_response.tool_calls if c.name not in external]
+            if internal:
+                outputs = await self._arun_many(internal, handlers)
+                for call, out in zip(internal, outputs, strict=True):
+                    history.append(ChatMessage.tool(out, tool_call_id=call.id, name=call.name))
+                    yield StreamEvent(
+                        type="tool_result",
+                        tool_call_id=call.id,
+                        tool_name=call.name,
+                        tool_output=out,
+                    )
+
+            if self._external_calls(final_response, external):
+                # 外部ツールが残った：ターンを閉じて、呼び出し側に戻す
+                yield StreamEvent(
+                    type="turn_complete", response=final_response, meta=final_response.meta
+                )
+                return
+
+            yield StreamEvent(type="turn_complete", response=final_response, meta=final_response.meta)
+
+        # 上限に達した
+        yield StreamEvent(type="max_turns")
+        if on_max_turns_summary:
+            # ツール無しで 1 回だけ応答させる（上限に達した後の締め）
+            summary_opts = {k: v for k, v in opts.items() if k not in ("tools",)}
+            final_response = None
+            async for event in self.chat.astream(history, tools=[], **summary_opts):
+                yield event
+                if event.type == "message_complete" and event.response is not None:
+                    final_response = event.response
+            if final_response is not None:
+                yield StreamEvent(
+                    type="turn_complete", response=final_response, meta=final_response.meta
+                )
+            return
+        # 要約を流さない設定なら、ToolLoopLimitError と同じ意味で終わる
+        raise ToolLoopLimitError(
+            f"tool loop exceeded max_turns={self.max_turns}",
+            provider=self.chat.provider_name,
+            partial_result=None,
         )
