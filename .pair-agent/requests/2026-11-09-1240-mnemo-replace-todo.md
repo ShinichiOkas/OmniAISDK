@@ -1,8 +1,11 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-09 16:55）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D〜1.H 未着手（0/9）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
-- **未着手の票**: `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験が 6 件落ちる・1.C とは無関係・feature/phase1b-webfetch @ a6cf740 でも同じ）
+- **全体の進捗（2026-11-09 17:35）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E〜1.H 未着手（0/7）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
+- **Phase 1.D の互換検証（師匠の依頼 2026-11-09 17:00）**: 合成データで bit 単位の一致を確認済み。本物のモデル・実データでの余弦 1-1e-6 一致の確認は Phase 3.1（Mnemo 側の差し替え時）で合わせて行う。
+- **未着手の票**:
+  - `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験 6 件落ち・1.C 以降と無関係）
+  - `2026-11-09-1730-flaky-sse-decoder-test.md`（`test_sse_decoder_is_split_invariant` が hypothesis で揺れる・1.D と無関係）
 - 方針の変更点（師匠 2026-11-09 の指示）:
   - **ELLM は除外**。ellm-proxy で Ollama として見せる外付けの経路にする（`ellm-proxy mnemo` の形で挟む）。
   - SDK 側は LLM サーバーの切り替えを **環境変数** で受ける仕組みにする（`ollama launch claude` と同じ発想）。
@@ -60,8 +63,8 @@
 
 | # | 中身 | 置き場 | 大きさ | 票 | 状態 |
 |---|---|---|---|---|---|
-| 1.15 | **numpy で返す道**: `embed_array()`（または `provider_options` の `output="numpy"`）で float32 の `np.ndarray` を返す。既存の list 返しは残す | SDK | S | E1 | ⬜ 未着手 |
-| 1.16 | **トークナイザの共有**: 2 本目のモデルを開くときに 1 本目のトークナイザを使い回す道（Mnemo の `_donor_tokenizer` 相当）。GIL を 1.2 秒握る問題を避ける | SDK | S | E2 | ⬜ 未着手 |
+| 1.15 | **numpy で返す道**: `embed_array()`（または `provider_options` の `output="numpy"`）で float32 の `np.ndarray` を返す。既存の list 返しは残す | SDK | S | E1 | ✅ 完了 2026-11-09 17:35（`FastEmbedEmbeddingAdapter.embed_array()`／`aembed_array()` を追加。保存済みベクトルと bit 一致する正規化（`_numpy_compat.normalize_bit_compat`・sentence-transformers 互換の順序）を既定にし、`bit_compat_normalize=False` で pure-Python の L2 にも切り替え可。既存の list 返しの `embed()` も同じ ndarray 経路に統一し、bit 単位で一致することを試験で確認） |
+| 1.16 | **トークナイザの共有**: 2 本目のモデルを開くときに 1 本目のトークナイザを使い回す道（下流の `_donor_tokenizer` 相当）。GIL を 1.2 秒握る問題を避ける | SDK | S | E2 | ✅ 完了 2026-11-09 17:35（`LazyModel(tokenizer_donor=...)` と `FastEmbedEmbeddingAdapter(tokenizer_donor=...)`。fastembed 0.8 の内部（`OnnxTextModel._load_onnx_model` と `OnnxTextEmbedding.load_onnx_model`）を直接触り、ORT のセッションだけ開いて donor の `tokenizer`/`special_token_to_id` を差す。版替えで形が変われば `TypeError` で縮退して従来の読み込みに戻る） |
 
 ### 1.E 文字起こしの底上げ
 
