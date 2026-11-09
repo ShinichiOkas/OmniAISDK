@@ -16,6 +16,8 @@ __all__ = [
     "EmbeddingResponse",
     "GeneratedImage",
     "ImageResponse",
+    "ImageSearchItem",
+    "ImageSearchResponse",
     "JudgeQuestion",
     "JudgeResponse",
     "MCPAttachment",
@@ -135,6 +137,22 @@ class SearchItem(BaseModel):
     url: str
     content: str
     score: float | None = None
+
+
+class ImageSearchItem(BaseModel):
+    """画像検索の結果 1 件。``image_url`` が元画像、``thumbnail`` はサムネイル URL。"""
+
+    title: str
+    image_url: str
+    thumbnail: str | None = None
+    width: int | None = None
+    height: int | None = None
+    source: str | None = None
+
+
+class ImageSearchResponse(BaseModel):
+    results: list[ImageSearchItem]
+    meta: ResponseMeta
 
 
 class SearchResponse(BaseModel):

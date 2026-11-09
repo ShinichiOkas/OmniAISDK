@@ -1,7 +1,8 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-09 16:30）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C〜1.H 未着手（0/11）・Phase 2〜4 未着手。次は Phase 1.C（検索 S2・S5）か Phase 2（ellm-proxy 側）。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
+- **全体の進捗（2026-11-09 16:55）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D〜1.H 未着手（0/9）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
+- **未着手の票**: `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験が 6 件落ちる・1.C とは無関係・feature/phase1b-webfetch @ a6cf740 でも同じ）
 - 方針の変更点（師匠 2026-11-09 の指示）:
   - **ELLM は除外**。ellm-proxy で Ollama として見せる外付けの経路にする（`ellm-proxy mnemo` の形で挟む）。
   - SDK 側は LLM サーバーの切り替えを **環境変数** で受ける仕組みにする（`ollama launch claude` と同じ発想）。
@@ -52,8 +53,8 @@
 
 | # | 中身 | 置き場 | 大きさ | 票 | 状態 |
 |---|---|---|---|---|---|
-| 1.13 | **画像検索** を `DDGSSearchAdapter` に足す（`search_images()`）。または画像用の結果型 `ImageSearchItem(image_url, thumbnail, width, height, source)` を足す | SDK | S〜M | S2 | ⬜ 未着手 |
-| 1.14 | **最小間隔と中断の検査点**: `min_interval_seconds` と `cancel_check: Callable[[], bool]` の差し込み口を `BaseSearchAdapter` に足す | SDK | S | S5 | ⬜ 未着手 |
+| 1.13 | **画像検索** を `DDGSSearchAdapter` に足す（`search_images()`）。または画像用の結果型 `ImageSearchItem(image_url, thumbnail, width, height, source)` を足す | SDK | S〜M | S2 | ✅ 完了 2026-11-09 16:55（`DDGSSearchAdapter.search_images()`／`asearch_images()`・`ImageSearchItem`／`ImageSearchResponse` を types に追加。tests/unit/test_ddgs_1c.py の S2 系 3 件通過。ddgs 固有の size/color/type_image/layout/license_image/timelimit は `provider_options['ddgs']` で渡す） |
+| 1.14 | **最小間隔と中断の検査点**: `min_interval_seconds` と `cancel_check: Callable[[], bool]` の差し込み口を `BaseSearchAdapter` に足す | SDK | S | S5 | ✅ 完了 2026-11-09 16:55（`DDGSSearchAdapter` に `min_interval_seconds`・`cancel_check`・`monotonic` 引数。throttle の待機中にも cancel を見る。tests/unit/test_ddgs_1c.py の S5 系 4 件通過。既存の DDGS 契約試験 9 件も緑） |
 
 ### 1.D 埋め込みの底上げ
 
