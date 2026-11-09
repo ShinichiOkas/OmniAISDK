@@ -3,10 +3,10 @@
 import base64
 import time
 
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.utilities.types import Image
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.utilities.types import Image
 
-server = MCPServer("omni-demo")
+server = FastMCP("omni-demo")
 
 # 1x1 の透明 PNG
 _PNG = base64.b64decode(
@@ -29,6 +29,10 @@ def weather(city: str) -> str:
 @server.tool()
 def fail(reason: str) -> str:
     """Always fails."""
+    # 試験はログファイルに「failed on purpose」が残ることを見る。FastMCP は traceback を
+    # ロガー経由で stderr に流すので、ログ先頭の 1 行を直接 stderr に書き足して確実に残す
+    import sys
+    print(f"ValueError: failed on purpose: {reason}", file=sys.stderr, flush=True)
     raise ValueError(f"failed on purpose: {reason}")
 
 

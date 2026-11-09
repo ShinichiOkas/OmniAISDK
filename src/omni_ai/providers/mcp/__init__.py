@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
 import os
 import sys
@@ -259,16 +260,19 @@ class MCPClientAdapter(MCPCapability):
         raw_name = (
             name[len(self.tool_prefix) :] if self.tool_prefix and name.startswith(self.tool_prefix) else name
         )
-        from mcp.shared.exceptions import MCPError
+        from mcp.shared.exceptions import McpError
 
         try:
+            effective = timeout if timeout is not None else self.call_timeout
+            # mcp 2.x では read_timeout_seconds は timedelta を要求する
             result = await session.call_tool(
                 raw_name,
                 arguments,
-                read_timeout_seconds=timeout if timeout is not None else self.call_timeout,
+                read_timeout_seconds=_dt.timedelta(seconds=float(effective)),
             )
-        except MCPError as exc:
-            if "timed out" in str(exc):  # 実測: MCPError("Request 'tools/call' timed out")
+        except McpError as exc:
+            # 実測: 旧版は "...timed out"、新版は "Timed out while waiting for response..."
+            if "timed out" in str(exc).lower():
                 raise ProviderTimeoutError(
                     f"MCP {self.name}/{raw_name}: {exc}", provider=self.provider_name
                 ) from exc
