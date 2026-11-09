@@ -55,8 +55,15 @@ class IO:
 
 
 def cmd_doctor(io: IO) -> int:
+    from ..env_overlay import summarize_env_overrides
     from .checks import run_checks
 
+    env_lines = summarize_env_overrides()
+    if env_lines:
+        io.print("[env overrides]")
+        for line in env_lines:
+            io.print(f"  {line}")
+        io.print("")
     checks = run_checks()
     width = max(len(c.name) for c in checks)
     for c in checks:
