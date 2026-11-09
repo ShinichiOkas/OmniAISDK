@@ -187,7 +187,8 @@ def test_fastembed_lazy_load_normalize_and_defaults(tmp_path) -> None:
     assert FakeTextEmbedding.instances == 1  # 1 回だけ読み込む
     assert res.meta.provider == "fastembed" and res.meta.model == DEFAULT_FASTEMBED_MODEL
     assert DEFAULT_FASTEMBED_MODEL == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    assert all(abs(norm(v) - 1.0) < 1e-9 for v in res.vectors) and res.normalized
+    # float32 への二度落とし（既存 DB との bit 互換・1.D）で 1e-8 の端数が残る
+    assert all(abs(norm(v) - 1.0) < 1e-6 for v in res.vectors) and res.normalized
     assert a._model.kwargs["cache_dir"] == str(tmp_path) and a._model.kwargs["threads"] == 2
 
 

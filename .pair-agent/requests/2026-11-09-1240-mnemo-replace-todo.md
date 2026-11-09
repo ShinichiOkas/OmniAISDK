@@ -1,7 +1,7 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-09 18:10）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G〜1.H 未着手（0/3）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
+- **全体の進捗（2026-11-10 00:55）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G 完了（3/3・1.24 は Mnemo に残す方針なので SDK では空）・Phase 1.H 未着手（0/1）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外・選択肢 A・2026-11-09 承認）を反映済み。
 - **Phase 1.D の互換検証（師匠の依頼 2026-11-09 17:00）**: 合成データで bit 単位の一致を確認済み。本物のモデル・実データでの余弦 1-1e-6 一致の確認は Phase 3.1（Mnemo 側の差し替え時）で合わせて行う。
 - **未着手の票**:
   - `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験 6 件落ち・1.C 以降と無関係）
@@ -84,9 +84,9 @@
 
 | # | 中身 | 置き場 | 大きさ | 票 | 状態 |
 |---|---|---|---|---|---|
-| 1.21 | **SSE の通信路** を `MCPClientAdapter` に足す（stdio と streamable-http と SSE） | SDK | S | M1 | ⬜ 未着手 |
-| 1.22 | **auth の差し込み口** `auth: httpx.Auth`（OAuth 本体は Mnemo に残す） | SDK | S | M2 | ⬜ 未着手 |
-| 1.23 | **elicitation の呼び戻し** と **通知の呼び戻し** の差し込み口 | SDK | S | M3・M4 | ⬜ 未着手 |
+| 1.21 | **SSE の通信路** を `MCPClientAdapter` に足す（stdio と streamable-http と SSE） | SDK | S | M1 | ✅ 完了 2026-11-10 00:50（`transport="stdio"|"streamable-http"|"sse"` を導入。SSE は `mcp.client.sse.sse_client`、streamable-http は現行版の `streamablehttp_client` を使う。tests/unit/test_mcp_1g.py の transport 系 5 件通過・tests/contract/test_mcp.py 9 件も緑） |
+| 1.22 | **auth の差し込み口** `auth: httpx.Auth`（OAuth 本体は Mnemo に残す） | SDK | S | M2 | ✅ 完了 2026-11-10 00:50（`auth: httpx.Auth \| None` を `__init__` に追加・SSE/streamable-http のクライアントにそのまま渡す。tests/unit/test_mcp_1g.py で保持を確認） |
+| 1.23 | **elicitation の呼び戻し** と **通知の呼び戻し** の差し込み口 | SDK | S | M3・M4 | ✅ 完了 2026-11-10 00:50（`elicitation_handler: (message, schema) -> dict \| ElicitResult`・`notification_handler: (message) -> None` を受け、`ClientSession(elicitation_callback=...・message_handler=...)` に包んで渡す。notification 側はユーザー例外を飲んで debug ログに留める。tests/unit/test_mcp_1g.py 4 件で呼ばれ方を確認） |
 | 1.24 | 複数サーバー管理（マネージャー）は **Mnemo に残す**。SDK には足さない（師匠判断が要るなら Phase 5 の判断に戻す） | — | — | M5 | ⏸ 対象外（師匠判断済み・推奨 3） |
 
 ### 1.H 画像生成（SDK）

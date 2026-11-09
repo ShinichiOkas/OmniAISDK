@@ -14,12 +14,13 @@ import datetime as _dt
 import logging
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, ClassVar, TextIO
+from typing import Any, ClassVar, Literal, TextIO
 
 import anyio
+import httpx
 
 from ...capabilities import MCPCapability
 from ...compat import PlatformCompat
@@ -38,6 +39,13 @@ logger = logging.getLogger("omni_ai")
 
 DEFAULT_CALL_TIMEOUT = 120.0  # 無応答サーバーで永久に待たない
 DEFAULT_CONNECT_TIMEOUT = 30.0
+
+Transport = Literal["stdio", "streamable-http", "sse"]
+
+#: form elicitation のコールバック: (message, requestedSchema) -> ElicitResult 相当の dict
+ElicitationHandler = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
+#: 通知のコールバック: (notification) を受けて非同期で処理する
+NotificationHandler = Callable[[Any], Awaitable[None]]
 
 
 def describe_exc(exc: BaseException) -> str:
@@ -106,22 +114,39 @@ class MCPClientAdapter(MCPCapability):
         *,
         command: Sequence[str] | None = None,
         url: str | None = None,
+        transport: Transport | None = None,
         env: Mapping[str, str] | None = None,
         cwd: str | Path | None = None,
         headers: Mapping[str, str] | None = None,
+        auth: httpx.Auth | None = None,
+        elicitation_handler: ElicitationHandler | None = None,
+        notification_handler: NotificationHandler | None = None,
         call_timeout: float = DEFAULT_CALL_TIMEOUT,
         connect_timeout: float = DEFAULT_CONNECT_TIMEOUT,
         errlog: TextIO | Path | None = None,
         tool_prefix: str = "",
     ) -> None:
         if bool(command) == bool(url):
-            raise ValueError("specify exactly one of command= (stdio) or url= (streamable-http)")
+            raise ValueError("specify exactly one of command= (stdio) or url= (http/sse)")
         self.name = name
         self.command = list(command or [])
         self.url = url
+        # transport は明示があれば採用、無ければ url か command の有無から推測
+        # （url のときは streamable-http が既定。sse を使うなら明示する）
+        if transport is None:
+            self.transport: Transport = "stdio" if command else "streamable-http"
+        else:
+            self.transport = transport
+            if self.transport == "stdio" and not command:
+                raise ValueError("transport='stdio' requires command=")
+            if self.transport in ("streamable-http", "sse") and not url:
+                raise ValueError(f"transport={self.transport!r} requires url=")
         self.env = dict(env) if env else None
         self.cwd = str(cwd) if cwd else None
         self.headers = dict(headers or {})
+        self.auth = auth
+        self.elicitation_handler = elicitation_handler
+        self.notification_handler = notification_handler
         self.call_timeout = call_timeout
         self.connect_timeout = connect_timeout
         self.errlog = errlog
@@ -141,6 +166,36 @@ class MCPClientAdapter(MCPCapability):
         stack.callback(f.close)
         return f
 
+    # ------------------------------------------------------------------ 差し込み口の包み
+
+    @staticmethod
+    def _wrap_elicitation(handler: ElicitationHandler) -> Any:
+        """ユーザー提供の `(message, requestedSchema) -> dict` を mcp SDK の形に包む。"""
+        from mcp.types import ElicitResult
+
+        async def _cb(context: Any, params: Any) -> ElicitResult:
+            message = getattr(params, "message", "") or ""
+            schema = getattr(params, "requestedSchema", None) or getattr(params, "requested_schema", None) or {}
+            result = await handler(message, dict(schema))
+            # ユーザーの返しは ElicitResult(**dict) で素直に組めるようにしておく
+            if isinstance(result, ElicitResult):
+                return result
+            return ElicitResult(**result)
+
+        return _cb
+
+    @staticmethod
+    def _wrap_notification(handler: NotificationHandler) -> Any:
+        """message_handler: サーバーからの notifications をユーザーの handler に流す。"""
+
+        async def _cb(message: Any) -> None:
+            try:
+                await handler(message)
+            except Exception:  # noqa: BLE001
+                logger.debug("mcp notification handler raised", exc_info=True)
+
+        return _cb
+
     def _resolve_command(self) -> list[str]:
         exe = self.command[0]
         if os.path.isabs(exe) or exe == sys.executable:  # noqa: PTH117
@@ -157,7 +212,7 @@ class MCPClientAdapter(MCPCapability):
             raise ImportError('MCPClientAdapter requires mcp: pip install "omni-ai-sdk[mcp]"') from exc
         stack = AsyncExitStack()
         try:
-            if self.command:
+            if self.transport == "stdio":
                 from mcp.client.stdio import StdioServerParameters, stdio_client
 
                 cmd = self._resolve_command()
@@ -165,17 +220,39 @@ class MCPClientAdapter(MCPCapability):
                 streams = await stack.enter_async_context(
                     stdio_client(params, errlog=self._errlog_stream(stack))
                 )
-            else:
-                from mcp.client.streamable_http import (  # type: ignore[attr-defined]  # 再公開のみ
-                    create_mcp_http_client,
-                    streamable_http_client,
-                )
+                read_stream, write_stream = streams[0], streams[1]
+            elif self.transport == "sse":
+                from mcp.client.sse import sse_client
 
-                client = create_mcp_http_client(headers=self.headers or None)
                 streams = await stack.enter_async_context(
-                    streamable_http_client(str(self.url), http_client=client)
+                    sse_client(
+                        str(self.url),
+                        headers=self.headers or None,
+                        auth=self.auth,
+                        timeout=self.connect_timeout,
+                    )
                 )
-            session = await stack.enter_async_context(ClientSession(streams[0], streams[1]))
+                read_stream, write_stream = streams[0], streams[1]
+            else:  # streamable-http
+                from mcp.client.streamable_http import streamablehttp_client
+
+                streams = await stack.enter_async_context(
+                    streamablehttp_client(
+                        str(self.url),
+                        headers=self.headers or None,
+                        auth=self.auth,
+                        timeout=self.connect_timeout,
+                    )
+                )
+                read_stream, write_stream = streams[0], streams[1]
+            session_kwargs: dict[str, Any] = {}
+            if self.elicitation_handler is not None:
+                session_kwargs["elicitation_callback"] = self._wrap_elicitation(self.elicitation_handler)
+            if self.notification_handler is not None:
+                session_kwargs["message_handler"] = self._wrap_notification(self.notification_handler)
+            session = await stack.enter_async_context(
+                ClientSession(read_stream, write_stream, **session_kwargs)
+            )
             with anyio.fail_after(self.connect_timeout):
                 await session.initialize()
         except FileNotFoundError as exc:
