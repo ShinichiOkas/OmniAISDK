@@ -1,7 +1,7 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-10 01:00）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G 完了（3/3・1.24 は Mnemo に残す方針なので SDK では空）・Phase 1.H ⏸ 保留（優先度低・師匠判断）・Phase 2〜4 未着手。**師匠判断 4 点とも確定**（1 推奨両方開け・2 推奨独立リポ・3 選択肢 A（MCP 対象外）・4 Mnemo に残す）。
+- **全体の進捗（2026-11-10 01:10）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F 完了（2/2）・Phase 1.G 完了（3/3・1.24 は Mnemo に残す方針なので SDK では空）・Phase 1.H ⏸ 保留（優先度低・師匠判断）・**Phase 2 は ellm-proxy リポジトリに起票済み**（`C:\Users\0000950207\work\ellm-proxy\.pair-agent\bugs\BUG-20261110-01〜06.md`・commit 3c447f8）・Phase 3〜4 未着手。**師匠判断 4 点とも確定**（1 推奨両方開け・2 推奨独立リポ・3 選択肢 A（MCP 対象外）・4 Mnemo に残す）。
 - **Phase 1.D の互換検証（師匠の依頼 2026-11-09 17:00）**: 合成データで bit 単位の一致を確認済み。本物のモデル・実データでの余弦 1-1e-6 一致の確認は Phase 3.1（Mnemo 側の差し替え時）で合わせて行う。
 - **未着手の票**:
   - `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験 6 件落ち・1.C 以降と無関係）
@@ -117,14 +117,16 @@
 
 ### まだ無い（＝足す必要がある）
 
-| # | 中身 | 置き場 | 大きさ |
-|---|---|---|---|
-| 2.1 | **`/v1/embeddings`**（OpenAI 互換）を開ける。ellm に埋め込み対応モデルがあれば流す。無ければ 501 で断る（SDK 側は Mnemo のローカル FastEmbed を既定にするので、プロキシ必須ではない） | EP | S |
-| 2.2 | **`/v1/images/generations`**（OpenAI 互換）または `/api/generate`（画像モード）を開ける。llmproviderlib の `agenerate_image` を呼ぶ。寸法の表（`SIZED_IMAGE_MODELS`）はプロキシ側に持つ | EP | S〜M |
-| 2.3 | **`/api/search`（または `/v1/search`）** を開ける。`search.py` の `web_search` を Anthropic 形式ではなく **Ollama/OpenAI 互換の形式**でも返せるようにする。Mnemo の `SearchAdapter` から呼べる口にする | EP | S |
-| 2.4 | **`ellm-proxy mnemo` の起動の別名** を足す。Claude Code 向けの `claude`・`code` と同じやり方で、Mnemo 向けのモデル割り当て（既定の Opus・Sonnet・Haiku＋ `gpt-5.5`・`gemini-3.5-flash` 等）を環境変数にセットする | EP | S |
-| 2.5 | **ポートの衝突回避**: 既定の `serve` 8082・`route` 8083 と、Ollama の 11434 の関係を Mnemo のコンパニオン登録簿で整理する（師匠と相談）。Mnemo からは環境変数 `OMNI_CHAT_BASE_URL=http://127.0.0.1:8082` で向ける | EP・Mnemo | S |
-| 2.6 | **プロセス管理**: Mnemo のコンパニオンプロセス登録簿から `ellm-proxy mnemo` を立てる・落とす・常駐させる手順を Mnemo 側に用意する | Mnemo | S |
+**起票先**: ellm-proxy リポジトリ `.pair-agent/bugs/`（commit 3c447f8・2026-11-10）。以降の作業はそちらで追う。
+
+| # | 中身 | 置き場 | 大きさ | 票 | 状態 |
+|---|---|---|---|---|---|
+| 2.1 | **`/v1/embeddings`**（OpenAI 互換）を開ける。ellm に埋め込み対応モデルがあれば流す。無ければ 501 で断る | EP | S | BUG-20261110-01 | 🗂 ellm-proxy で起票 |
+| 2.2 | **`/v1/images/generations`**（OpenAI 互換）または `/api/generate`（画像モード）を開ける | EP | S〜M | BUG-20261110-02 | ⏸ 保留（優先度低・師匠判断） |
+| 2.3 | **`/api/search`（または `/v1/search`）** を開ける。Mnemo の `SearchAdapter` から呼べる口にする | EP | S | BUG-20261110-03 | 🗂 ellm-proxy で起票 |
+| 2.4 | **`ellm-proxy mnemo` の起動の別名** を足す | EP | S | BUG-20261110-04 | 🗂 ellm-proxy で起票 |
+| 2.5 | **ポートの衝突回避**: 既定の `serve` 8082・`route` 8083 と、Ollama の 11434 の関係 | EP・Mnemo | S | BUG-20261110-05 | 🗂 ellm-proxy で起票 |
+| 2.6 | **プロセス管理**: `build.ps1 -Install -Swap` の停止時間 <1 秒を仕組みで担保 | EP | S | BUG-20261110-06 | 🗂 ellm-proxy で起票 |
 
 ### Mnemo から ellm-proxy への向け方（既存の機能で足りる）
 
