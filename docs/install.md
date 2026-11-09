@@ -115,3 +115,38 @@ ai = OmniClient.from_config()     # 誤りがあれば ConfigurationError（場�
 | `omni-ai models catalog / list / size / pull / remove` | モデルの一覧・容量の確認・取得・削除（取得の前に容量を表示して確認） |
 
 モデルの名前は `fastembed-embedding`・`fastembed-rerank`・`whisper-medium`・`ollama:<モデル>`・`docker:<イメージ>` です。
+
+## 5. Windows での注意
+
+### PowerShell で設定ファイルを直書きする場合
+
+`Set-Content -Encoding UTF8` は **BOM 付き** UTF-8 を書き出します。tomllib は BOM 付きファイルを `Invalid statement (at line 1, column 1)` で拒否するので、**BOM 無し**で書く必要があります:
+
+```powershell
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
+```
+
+または `omni-ai setup` を使えばこの問題はありません。
+
+### API キーの環境変数
+
+現在のセッションのみ:
+
+```powershell
+$env:GEMINI_API_KEY = 'sk-...'
+```
+
+恒久的に（ユーザー環境変数、新しいシェルで有効）:
+
+```powershell
+[Environment]::SetEnvironmentVariable('GEMINI_API_KEY', 'sk-...', 'User')
+```
+
+### `omni-ai` が見つからないとき
+
+`py -m pip install -e .` で入れた直後に `omni-ai` が PATH にないときは、Python の `Scripts\` ディレクトリを PATH に追加してください（通常は `%LOCALAPPDATA%\Programs\Python\Python312\Scripts`）。
+
+### Python 3.14 の `httpx[http2]`
+
+`httpx[http2]` の wheel が Python 3.14 で未提供のことがあります。安定のため **Python 3.12** を推奨します（`py -3.12 -m pip install -e .`）。
