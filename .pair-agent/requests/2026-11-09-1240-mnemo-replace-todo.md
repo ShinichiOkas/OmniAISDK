@@ -1,7 +1,7 @@
 # Mnemo → OmniAISDK 置き換え TODO（ELLM 除外・SDK 先行）
 
 - 作成: 2026-11-09 JST（レポート `2026-11-09-1211-mnemo-omniaisdk-replace-report.md` を踏まえた作業一覧）
-- **全体の進捗（2026-11-09 17:35）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E〜1.H 未着手（0/7）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
+- **全体の進捗（2026-11-09 17:55）**: Phase 0 完了（4/4）・Phase 1.A 完了（6/6）・Phase 1.B 完了（6/6）・Phase 1.C 完了（2/2）・Phase 1.D 完了（2/2）・Phase 1.E 完了（2/2）・Phase 1.F〜1.H 未着手（0/5）・Phase 2〜4 未着手。師匠判断は 4 点のうち推奨 3（MCP 対象外）を反映済み。
 - **Phase 1.D の互換検証（師匠の依頼 2026-11-09 17:00）**: 合成データで bit 単位の一致を確認済み。本物のモデル・実データでの余弦 1-1e-6 一致の確認は Phase 3.1（Mnemo 側の差し替え時）で合わせて行う。
 - **未着手の票**:
   - `2026-11-09-1650-mcp-contract-fail.md`（既存の MCP 契約試験 6 件落ち・1.C 以降と無関係）
@@ -70,8 +70,8 @@
 
 | # | 中身 | 置き場 | 大きさ | 票 | 状態 |
 |---|---|---|---|---|---|
-| 1.17 | **逐次の出力**: `transcribe_iter()`（区間を順に返す）と `on_progress: Callable[[float], None]`（0.0〜1.0）を `FasterWhisperAudioAdapter` に足す。faster-whisper は区間を生成器で返すのでそれを外に出す | SDK | S〜M | T1 | ⬜ 未着手 |
-| 1.18 | **モデルのパス指定**: 既存の `~/.mnemo_recall/models/whisper-medium-ct2` を `model` に渡せるか確かめる。渡せないなら `model_path` を足す | SDK | S | T3 | ⬜ 未着手 |
+| 1.17 | **逐次の出力**: `transcribe_iter()`（区間を順に返す）と `on_progress: Callable[[float], None]`（0.0〜1.0）を `FasterWhisperAudioAdapter` に足す。faster-whisper は区間を生成器で返すのでそれを外に出す | SDK | S〜M | T1 | ✅ 完了 2026-11-09 17:55（`FasterWhisperAudioAdapter.transcribe_iter()`／`atranscribe_iter()` を追加。音声全体の長さが取れたとき 1% 以上動くたびに `on_progress(float)` を呼び、最後に必ず 1.0 を通知する。tests/unit/test_faster_whisper_1e.py 7 件通過） |
+| 1.18 | **モデルのパス指定**: 既存の `~/.mnemo_recall/models/whisper-medium-ct2` を `model` に渡せるか確かめる。渡せないなら `model_path` を足す | SDK | S | T3 | ✅ 完了 2026-11-09 17:55（既存の実装が `model_size_or_path=self.model_name` で受け取るため、ディレクトリパスも `model=` に直接渡せる。試験で `tmp_path / 'whisper-medium-ct2'` を渡して確認） |
 
 ### 1.F 音声合成の底上げ
 

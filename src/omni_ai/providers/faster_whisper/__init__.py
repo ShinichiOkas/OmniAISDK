@@ -2,6 +2,10 @@
 
 - 既定は medium・CPU・int8。モデルは初回に OS 標準のキャッシュ配下へダウンロードする（medium 約 1.5GB）
 - 入力は Path / bytes / ストリーム（デコードは faster-whisper 同梱の PyAV。ffmpeg の別途導入は不要）
+- ``model`` にはモデル名（``'medium'``）だけでなく、既存の変換済みモデルの**ディレクトリパス**も渡せる
+  （faster-whisper の ``model_size_or_path`` と同じ扱い。例: ``~/.cache/whisper-medium-ct2``）
+- 逐次の出力: ``transcribe_iter()`` で区間（``TranscriptSegment``）を順に流す。``on_progress``
+  に渡したコールバックには 0.0〜1.0 の進み具合が渡る（音声全体の長さが分かるときのみ）
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ from __future__ import annotations
 import io
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -150,6 +154,126 @@ class FasterWhisperAudioAdapter(TranscriptionOnlyAudio):
 
     async def atranscribe(self, audio: Any, **kwargs: Any) -> AudioTranscriptionResponse:
         return await anyio.to_thread.run_sync(lambda: self.transcribe(audio, **kwargs))
+
+    # ---------- 逐次の出力（T1） ----------
+
+    def transcribe_iter(
+        self,
+        audio: Any,
+        *,
+        model: str | None = None,
+        language: str | None = None,
+        on_progress: Callable[[float], None] | None = None,
+        **provider_options: Any,
+    ) -> Iterator[TranscriptSegment]:
+        """音声の区間を順に流す。全体の長さが取れたとき ``on_progress`` に 0.0〜1.0 を渡す。"""
+        if model is not None and model != self.model_name:
+            raise UnsupportedFeatureError(
+                f"adapter is bound to {self.model_name!r}; create another one for {model!r}",
+                provider=self.provider_name,
+                model=model,
+            )
+        if isinstance(audio, (UrlRef, FileRef)):
+            raise UnsupportedFeatureError(
+                "faster-whisper transcribes local audio only (Path / bytes / stream)",
+                provider=self.provider_name,
+            )
+        if isinstance(audio, str):
+            raise InvalidRequestError(
+                "pass pathlib.Path(...) for files (str is ambiguous)", provider=self.provider_name
+            )
+        opts = provider_options.get(self.provider_name, {})
+        start = None
+        if isinstance(audio, bytes):
+            source: Any = io.BytesIO(audio)
+        elif isinstance(audio, Path):
+            source = str(audio)
+        else:
+            source = audio
+            start = tell_or_none(audio)
+        try:
+            segments, info = self.load().transcribe(
+                source,
+                language=language or None,
+                beam_size=opts.get("beam_size", self.beam_size),
+                vad_filter=opts.get("vad_filter", self.vad_filter),
+            )
+            duration = float(getattr(info, "duration", 0.0) or 0.0)
+            last_reported = -1.0
+            for s in segments:
+                seg = TranscriptSegment(start=float(s.start), end=float(s.end), text=s.text)
+                yield seg
+                if on_progress is not None and duration > 0:
+                    frac = min(1.0, max(0.0, seg.end / duration))
+                    # 1% 以上動いたときだけ呼ぶ（過剰なコールバックを避ける）
+                    if frac - last_reported >= 0.01 or frac >= 1.0:
+                        last_reported = frac
+                        try:
+                            on_progress(frac)
+                        except Exception:  # noqa: BLE001
+                            logger.debug("transcribe_iter: on_progress raised", exc_info=True)
+            if on_progress is not None and duration > 0 and last_reported < 1.0:
+                try:
+                    on_progress(1.0)
+                except Exception:  # noqa: BLE001
+                    logger.debug("transcribe_iter: on_progress raised (final)", exc_info=True)
+        except OmniError:
+            raise
+        except Exception as exc:
+            raise InvalidRequestError(
+                f"faster-whisper failed: {type(exc).__name__}: {exc}",
+                provider=self.provider_name,
+                raw_error=exc,
+            ) from exc
+        finally:
+            if start is not None:
+                rewind(audio, start)
+
+    async def atranscribe_iter(
+        self,
+        audio: Any,
+        *,
+        model: str | None = None,
+        language: str | None = None,
+        on_progress: Callable[[float], None] | None = None,
+        **provider_options: Any,
+    ) -> AsyncIterator[TranscriptSegment]:
+        """``transcribe_iter`` の非同期版（スレッドで回して順に取り出す）。"""
+        import queue
+
+        sentinel = object()
+        q: queue.Queue[Any] = queue.Queue(maxsize=16)
+
+        def worker() -> None:
+            try:
+                for seg in self.transcribe_iter(
+                    audio,
+                    model=model,
+                    language=language,
+                    on_progress=on_progress,
+                    **provider_options,
+                ):
+                    q.put(seg)
+            except Exception as exc:  # noqa: BLE001
+                q.put(("error", exc))
+            finally:
+                q.put(sentinel)
+
+        task = anyio.to_thread.run_sync(worker, abandon_on_cancel=True)
+        try:
+            while True:
+                item = await anyio.to_thread.run_sync(q.get)
+                if item is sentinel:
+                    break
+                if isinstance(item, tuple) and item and item[0] == "error":
+                    raise item[1]
+                yield item
+        finally:
+            # worker の完了を待つ（例外でも）
+            try:
+                await task
+            except Exception:  # noqa: BLE001
+                pass
 
     def close(self) -> None:
         self._model = None
