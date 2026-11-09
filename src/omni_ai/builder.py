@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .env_overlay import EnvOverrideSummary, apply_env_overlay
 from .exceptions import OmniError
 from .settings import ConfigIssue, OmniConfig, validate_files
 
@@ -74,9 +75,26 @@ def _chat(cfg: OmniConfig) -> ChatCapability | None:
     return FallbackChatAdapter(adapters)
 
 
-def build_client(cfg: OmniConfig, **client_kwargs: Any) -> OmniClient:
-    """検証済みの OmniConfig から OmniClient を作る。"""
+def build_client(
+    cfg: OmniConfig,
+    *,
+    env_overlay: bool = True,
+    env_summary: list[EnvOverrideSummary] | None = None,
+    **client_kwargs: Any,
+) -> OmniClient:
+    """検証済みの OmniConfig から OmniClient を作る。
+
+    - ``env_overlay=True``（既定）で、起動時の環境変数（``OMNI_CHAT_PROVIDER`` ほか）を
+      TOML の上に重ねる（優先順位: 引数 → 環境変数 → TOML → 既定）。
+    - ``env_summary`` に空のリストを渡すと、何が上書きされたかの一覧を受け取れる
+      （``cli checks`` 用）。
+    """
     from .router import OmniClient
+
+    if env_overlay:
+        cfg, summary = apply_env_overlay(cfg)
+        if env_summary is not None:
+            env_summary.append(summary)
 
     c = cfg.client
     parts: dict[str, Any] = {"chat": _chat(cfg)}
@@ -155,11 +173,19 @@ def build_client(cfg: OmniConfig, **client_kwargs: Any) -> OmniClient:
 
 
 def client_from_config(
-    config_file: Path | None = None, secrets_file: Path | None = None, **client_kwargs: Any
+    config_file: Path | None = None,
+    secrets_file: Path | None = None,
+    *,
+    env_overlay: bool = True,
+    env_summary: list[EnvOverrideSummary] | None = None,
+    **client_kwargs: Any,
 ) -> OmniClient:
-    """config.toml / secrets.toml を検証して OmniClient を作る。誤りがあれば ConfigurationError。"""
+    """config.toml / secrets.toml を検証して OmniClient を作る。誤りがあれば ConfigurationError。
+
+    ``env_overlay=True``（既定）で、起動時の環境変数（``OMNI_CHAT_PROVIDER`` ほか）を上書きに使う。
+    """
     cfg, issues = validate_files(config_file, secrets_file)
     errors = [i for i in issues if i.level == "error"]
     if cfg is None or errors:
         raise ConfigurationError(errors or issues)
-    return build_client(cfg, **client_kwargs)
+    return build_client(cfg, env_overlay=env_overlay, env_summary=env_summary, **client_kwargs)

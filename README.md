@@ -106,6 +106,34 @@ omni-ai doctor     # 環境の診断
 
 設定ファイル（`config.toml` / `secrets.toml`）を作れば、`OmniClient.from_config()` で組み立てられます。
 
+### 環境変数で切り替える（前段プロキシを挟む運用）
+
+起動時の環境変数で TOML を上書きできます。優先順位は **引数 → 環境変数 → TOML → 既定**。詳細は `src/omni_ai/env_overlay.py`。
+
+| 変数 | 用途 |
+|---|---|
+| `OMNI_CHAT_PROVIDER` | 使う chat プロバイダ（`gemini` / `ollama` / `openai-compatible` など）に差し替える |
+| `OMNI_CHAT_MODEL` | 選んだプロバイダのモデル |
+| `OMNI_CHAT_BASE_URL` | 選んだプロバイダの接続先 URL |
+| `OMNI_EMBEDDING_PROVIDER` / `_MODEL` / `_CACHE_DIR` | 埋め込みの差し替え |
+| `OMNI_SEARCH_REGION` / `_SAFESEARCH` | 検索の切り替え |
+| `OMNI_AUDIO_SPEECH` / `_TRANSCRIPTION` / `_VOICE` / `_WHISPER_MODEL` / `_CACHE_DIR` | 音声の切り替え（`speech=none` で合成を無効化） |
+| `OMNI_JUDGE_MODEL` / `OMNI_DOC_PARSER_PROVIDER` | Judge・文書解析 |
+| `OMNI_SANDBOX_IMAGE` / `_MEMORY` / `_NETWORK` | Sandbox |
+
+接続先の API キーは従来どおり `OMNI_<PROVIDER>_API_KEY`（例: `OMNI_OPENAI_COMPATIBLE_API_KEY`）または各プロバイダ標準の環境変数。
+
+#### 例: OpenAI 互換の前段プロキシへ向ける
+
+PowerShell（Windows）::
+
+    $env:OMNI_CHAT_PROVIDER = "openai-compatible"
+    $env:OMNI_CHAT_BASE_URL = "http://127.0.0.1:8082"
+    $env:OMNI_CHAT_MODEL    = "<プロキシが受けるモデル名>"
+    $env:OMNI_OPENAI_COMPATIBLE_API_KEY = "unused-but-required"
+
+前段プロキシ側で認証・モデル名の翻訳・ツール呼び出しの整形を担う運用（Claude Code 流儀の `ANTHROPIC_BASE_URL` と同じ発想）。SDK は環境変数だけで切り替わる。
+
 ## 使い方
 
 ```bash
