@@ -1,5 +1,8 @@
 """OmniAI SDK — マルチプロバイダ統合 Python SDK。"""
 
+from ._json_extract import extract_json_block
+from ._model_info import ModelInfo
+from ._resilience import DeadUpstreamGate, StreamIdleError, UpstreamUnreachableError
 from ._version import __version__
 from .builder import ConfigurationError
 from .capabilities import ChatCapability
@@ -49,10 +52,12 @@ __all__ = [
     "ChatResponse",
     "ConfigurationError",
     "ContextLengthExceededError",
+    "DeadUpstreamGate",
     "FallbackChatAdapter",
     "FileRef",
     "InvalidRequestError",
     "MediaPart",
+    "ModelInfo",
     "ModelPrice",
     "NotFoundError",
     "OmniClient",
@@ -68,6 +73,7 @@ __all__ = [
     "Role",
     "SchemaValidationError",
     "StreamEvent",
+    "StreamIdleError",
     "StreamInterruptedError",
     "TelemetryTracker",
     "TextPart",
@@ -77,7 +83,9 @@ __all__ = [
     "ToolRunResult",
     "ToolRunner",
     "UnsupportedFeatureError",
+    "UpstreamUnreachableError",
     "UrlRef",
     "__version__",
+    "extract_json_block",
     "omni_tool",
 ]
