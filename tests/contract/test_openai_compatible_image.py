@@ -239,3 +239,58 @@ async def test_async_error_mapping() -> None:
     respx.post(URL).mock(return_value=httpx.Response(401, json={"error": {"message": "bad key"}}))
     with pytest.raises(AuthenticationError):
         await make().agenerate_image("x")
+
+
+@respx.mock
+def test_b64_that_decodes_to_nothing_is_an_error() -> None:
+    respx.post(URL).mock(return_value=httpx.Response(200, json={"data": [{"b64_json": "===="}]}))
+    with pytest.raises(OmniError):
+        make().generate_image("x")
+
+
+@respx.mock
+def test_url_with_empty_body_is_an_error() -> None:
+    respx.post(URL).mock(return_value=httpx.Response(200, json={"data": [{"url": "http://cdn.example/e"}]}))
+    respx.get("http://cdn.example/e").mock(return_value=httpx.Response(200, content=b""))
+    with pytest.raises(OmniError):
+        make().generate_image("x")
+
+
+@respx.mock
+def test_invalid_b64_before_a_url_entry_is_an_error_not_a_misplaced_image() -> None:
+    respx.post(URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"b64_json": "!!!"}, {"url": "http://cdn.example/u"}]})
+    )
+    respx.get("http://cdn.example/u").mock(return_value=httpx.Response(200, content=JPEG))
+    with pytest.raises(OmniError):
+        make().generate_image("x", n=2)
+
+
+@respx.mock
+@pytest.mark.parametrize("kind", ["image", "search"])
+def test_200_with_non_json_body_is_an_omni_error(kind: str) -> None:
+    from omni_ai.providers.openai_compatible.search import OpenAICompatibleSearchAdapter
+
+    respx.post(URL).mock(return_value=httpx.Response(200, content=b"<html>wrong base url</html>"))
+    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, content=b"<html>wrong base url</html>"))
+    with pytest.raises(OmniError):
+        if kind == "image":
+            make().generate_image("x")
+        else:
+            OpenAICompatibleSearchAdapter(base_url=BASE).search("x")
+
+
+@respx.mock
+async def test_async_url_fetch_sends_no_authorization() -> None:
+    respx.post(URL).mock(return_value=httpx.Response(200, json={"data": [{"url": "http://cdn.example/k"}]}))
+    fetch = respx.get("http://cdn.example/k").mock(return_value=httpx.Response(200, content=PNG))
+    await make(api_key="SECRET").agenerate_image("x")
+    assert "authorization" not in fetch.calls.last.request.headers
+
+
+def test_adapters_are_reachable_from_the_providers_package() -> None:
+    from omni_ai.providers import OpenAICompatibleImageAdapter as I
+    from omni_ai.providers import OpenAICompatibleSearchAdapter as S
+
+    assert I is OpenAICompatibleImageAdapter
+    assert S.__name__ == "OpenAICompatibleSearchAdapter"

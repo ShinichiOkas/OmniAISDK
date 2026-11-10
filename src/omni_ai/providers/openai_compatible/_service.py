@@ -75,6 +75,17 @@ class OpenAICompatibleServiceBase:
     def base_url(self) -> str:
         return self._sync.base_url
 
+    def _json(self, result: Any) -> Any:
+        """200 なのに JSON でない応答（接続先の取り違えで HTML が返るなど）を OmniError にする。"""
+        try:
+            return result.json()
+        except ValueError as exc:
+            raise OmniError(
+                f"{self.provider_name} {self.service} returned a non-JSON body (check base_url={self.base_url})",
+                provider=self.provider_name,
+                raw_error=exc,
+            ) from exc
+
     def _map_error(self, status: int, body: bytes, headers: Mapping[str, str]) -> OmniError:
         return codec.map_error(status, body, headers, None, provider=self.provider_name)
 

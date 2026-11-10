@@ -74,6 +74,7 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
                 continue
             url = str(r.get("url") or "")
             if not url:
+                logger.warning("%s search: skipped a result without url", self.provider_name)
                 continue
             score = r.get("score")
             items.append(
@@ -109,7 +110,7 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
         started = time.monotonic()
         result = self._sync.request("POST", "/search", json=body)
         return self._parse(
-            result.json(), body, limit, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result), body, limit, started, result.attempts, result.response.headers.get("x-request-id")
         )
 
     async def asearch(
@@ -124,5 +125,5 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
         started = time.monotonic()
         result = await self._async.request("POST", "/search", json=body)
         return self._parse(
-            result.json(), body, limit, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result), body, limit, started, result.attempts, result.response.headers.get("x-request-id")
         )

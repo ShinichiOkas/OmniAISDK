@@ -75,15 +75,15 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
 
     def _parse(
         self, data: Any, model: str | None, started: float, attempts: int, request_id: str | None
-    ) -> tuple[ImageResponse, list[str]]:
-        """応答を ImageResponse にする。``url`` で来た分は ``data`` が空で、取得すべき URL を順に返す。"""
+    ) -> tuple[ImageResponse, list[tuple[int, str]]]:
+        """応答を ImageResponse にする。``url`` で来た分は ``data`` が空で、(images の添字, URL) を順に返す。"""
         items = data.get("data") if isinstance(data, dict) else None
         if not isinstance(items, list) or not items:
             raise OmniError(
                 "image response has no data", provider=self.provider_name, model=model, raw_error=data
             )
         images: list[GeneratedImage] = []
-        pending: list[str] = []
+        pending: list[tuple[int, str]] = []
         for item in items:
             if not isinstance(item, dict):
                 logger.warning("%s image: skipped a non-object entry in data", self.provider_name)
@@ -100,9 +100,13 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
                         model=model,
                         raw_error=exc,
                     ) from exc
+                if not raw:
+                    raise OmniError(
+                        "image b64_json decoded to 0 bytes", provider=self.provider_name, model=model, raw_error=data
+                    )
                 images.append(GeneratedImage(data=raw, mime_type=_sniff_mime(raw), revised_prompt=revised))
             elif item.get("url"):
-                pending.append(str(item["url"]))
+                pending.append((len(images), str(item["url"])))
                 images.append(GeneratedImage(data=b"", revised_prompt=revised))
             else:
                 logger.warning("%s image: entry has neither b64_json nor url; skipped", self.provider_name)
@@ -119,13 +123,16 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
         )
         return ImageResponse(images=images, meta=meta), pending
 
-    def _fill(self, res: ImageResponse, pending: list[str], fetched: list[httpx.Response]) -> ImageResponse:
-        """url で来た画像に、取ってきたバイト列を入れる（順序は応答のまま）。"""
-        it = iter(zip(pending, fetched, strict=True))
-        for img in res.images:
-            if img.data:
-                continue
-            url, resp = next(it)
+    def _fill(
+        self, res: ImageResponse, pending: list[tuple[int, str]], fetched: list[httpx.Response]
+    ) -> ImageResponse:
+        """url で来た画像に、取ってきたバイト列を入れる（添字で置くので順序は応答のまま）。"""
+        for (idx, url), resp in zip(pending, fetched, strict=True):
+            if not resp.content:
+                raise OmniError(
+                    f"image url returned an empty body: {url}", provider=self.provider_name, raw_error=url
+                )
+            img = res.images[idx]
             img.data = resp.content
             ctype = resp.headers.get("content-type", "").split(";")[0].strip()
             img.mime_type = ctype if ctype.startswith("image/") else _sniff_mime(resp.content)
@@ -147,9 +154,9 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
         started = time.monotonic()
         result = self._sync.request("POST", "/images/generations", json=body)
         res, pending = self._parse(
-            result.json(), resolved, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result), resolved, started, result.attempts, result.response.headers.get("x-request-id")
         )
-        fetched = [self._fetch(u) for u in pending]
+        fetched = [self._fetch(u) for _, u in pending]
         res.meta.latency_ms = (time.monotonic() - started) * 1000.0
         return self._fill(res, pending, fetched)
 
@@ -166,9 +173,9 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
         started = time.monotonic()
         result = await self._async.request("POST", "/images/generations", json=body)
         res, pending = self._parse(
-            result.json(), resolved, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result), resolved, started, result.attempts, result.response.headers.get("x-request-id")
         )
-        fetched = [await self._afetch(u) for u in pending]
+        fetched = [await self._afetch(u) for _, u in pending]
         res.meta.latency_ms = (time.monotonic() - started) * 1000.0
         return self._fill(res, pending, fetched)
 

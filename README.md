@@ -116,7 +116,9 @@ omni-ai doctor     # 環境の診断
 | `OMNI_CHAT_MODEL` | 選んだプロバイダのモデル |
 | `OMNI_CHAT_BASE_URL` | 選んだプロバイダの接続先 URL |
 | `OMNI_EMBEDDING_PROVIDER` / `_MODEL` / `_CACHE_DIR` | 埋め込みの差し替え |
-| `OMNI_SEARCH_REGION` / `_SAFESEARCH` | 検索の切り替え |
+| `OMNI_SEARCH_PROVIDER` / `_BASE_URL` | 検索の口。`ddgs`（既定）か `openai-compatible`（`POST {BASE_URL}/search`。`http://127.0.0.1:<port>/v1` の形。`_BASE_URL` は後者だけで使う） |
+| `OMNI_SEARCH_REGION` / `_SAFESEARCH` | 検索の切り替え（ddgs） |
+| `OMNI_IMAGE_PROVIDER` / `_BASE_URL` | 画像生成の口。`openai-compatible`（`POST {BASE_URL}/images/generations`）。`_BASE_URL` 必須 |
 | `OMNI_AUDIO_SPEECH` / `_TRANSCRIPTION` / `_VOICE` / `_WHISPER_MODEL` / `_CACHE_DIR` | 音声の切り替え（`speech=none` で合成を無効化） |
 | `OMNI_JUDGE_MODEL` / `OMNI_DOC_PARSER_PROVIDER` | Judge・文書解析 |
 | `OMNI_SANDBOX_IMAGE` / `_MEMORY` / `_NETWORK` | Sandbox |
