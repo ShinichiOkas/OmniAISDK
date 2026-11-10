@@ -133,7 +133,7 @@ def test_image_base_url_alone_raises() -> None:
 
 def test_image_unknown_provider_raises() -> None:
     with pytest.raises(ValueError, match="OMNI_IMAGE_PROVIDER"):
-        apply_env_overlay(OmniConfig(), environ={"OMNI_IMAGE_PROVIDER": "dall-e"})
+        apply_env_overlay(OmniConfig(), environ={"OMNI_IMAGE_PROVIDER": "dall-e", "OMNI_IMAGE_BASE_URL": IMAGE_BASE})
 
 
 def test_image_section_validator_requires_base_url() -> None:
