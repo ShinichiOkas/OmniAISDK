@@ -27,6 +27,8 @@ if TYPE_CHECKING:
         OpenRouterChatAdapter,
         XAIChatAdapter,
     )
+    from .openai_compatible.image import OpenAICompatibleImageAdapter
+    from .openai_compatible.search import OpenAICompatibleSearchAdapter
     from .pypdf import PyPDFDocumentParser
     from .web_fetch import HttpxWebFetchAdapter
 
@@ -47,6 +49,8 @@ _LAZY = {
     "OllamaChatAdapter": ".ollama",
     "OllamaCloudChatAdapter": ".ollama",
     "OpenAICompatibleChatAdapter": ".openai_compatible",
+    "OpenAICompatibleImageAdapter": ".openai_compatible.image",
+    "OpenAICompatibleSearchAdapter": ".openai_compatible.search",
     "XAIChatAdapter": ".openai_compatible",
     "AgnesChatAdapter": ".openai_compatible",
     "OpenRouterChatAdapter": ".openai_compatible",
@@ -75,6 +79,8 @@ __all__ = [
     "OllamaEmbeddingAdapter",
     "OllamaJudgeAdapter",
     "OpenAICompatibleChatAdapter",
+    "OpenAICompatibleImageAdapter",
+    "OpenAICompatibleSearchAdapter",
     "OpenRouterChatAdapter",
     "PyPDFDocumentParser",
     "XAIChatAdapter",

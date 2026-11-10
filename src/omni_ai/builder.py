@@ -128,9 +128,18 @@ def build_client(
             kw["model"] = c.rerank.model
         parts["rerank"] = FastEmbedRerankAdapter(**kw)
     if c.search:
-        from .providers.ddgs import DDGSSearchAdapter
+        if c.search.provider == "openai-compatible":
+            from .providers.openai_compatible.search import OpenAICompatibleSearchAdapter
 
-        parts["search"] = DDGSSearchAdapter(region=c.search.region, safesearch=c.search.safesearch)
+            parts["search"] = OpenAICompatibleSearchAdapter(base_url=c.search.base_url, backend=c.search.backend)
+        else:
+            from .providers.ddgs import DDGSSearchAdapter
+
+            parts["search"] = DDGSSearchAdapter(region=c.search.region, safesearch=c.search.safesearch)
+    if c.image:
+        from .providers.openai_compatible.image import OpenAICompatibleImageAdapter
+
+        parts["image"] = OpenAICompatibleImageAdapter(base_url=c.image.base_url, default_model=c.image.model)
     if c.doc_parser:
         from .providers import default_document_parser
         from .providers.markitdown import MarkItDownDocumentParser

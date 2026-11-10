@@ -19,7 +19,10 @@
 - ``OMNI_CHAT_MODEL``: 選ばれた chat プロバイダのモデル
 - ``OMNI_CHAT_BASE_URL``: 選ばれた chat プロバイダの ``base_url``（接続先ごとの TOML/secrets を使う ``resolve_setting`` を介さない直指定）
 - ``OMNI_EMBEDDING_PROVIDER``・``OMNI_EMBEDDING_MODEL``・``OMNI_EMBEDDING_CACHE_DIR``
-- ``OMNI_SEARCH_PROVIDER``・``OMNI_SEARCH_REGION``・``OMNI_SEARCH_SAFESEARCH``
+- ``OMNI_SEARCH_PROVIDER``（``ddgs`` | ``openai-compatible``）・``OMNI_SEARCH_BASE_URL``・``OMNI_SEARCH_REGION``・``OMNI_SEARCH_SAFESEARCH``
+  — ``openai-compatible`` は前段プロキシの ``{OMNI_SEARCH_BASE_URL}/search``（``http://127.0.0.1:<port>/v1`` の形）
+- ``OMNI_IMAGE_PROVIDER``（``openai-compatible``）・``OMNI_IMAGE_BASE_URL``
+  — 前段プロキシの ``{OMNI_IMAGE_BASE_URL}/images/generations``
 - ``OMNI_AUDIO_SPEECH``・``OMNI_AUDIO_TRANSCRIPTION``・``OMNI_AUDIO_VOICE``・``OMNI_AUDIO_WHISPER_MODEL``・``OMNI_AUDIO_CACHE_DIR``
 - ``OMNI_JUDGE_MODEL``・``OMNI_DOC_PARSER_PROVIDER``
 - ``OMNI_SANDBOX_IMAGE``・``OMNI_SANDBOX_MEMORY``・``OMNI_SANDBOX_NETWORK``（``1``/``0``）
@@ -41,11 +44,15 @@ from .settings import (
     ClientSection,
     DocParserSection,
     EmbeddingSection,
+    ImageSection,
     JudgeSection,
     OmniConfig,
     SandboxSection,
     SearchSection,
 )
+
+SEARCH_PROVIDERS = ("ddgs", "openai-compatible")
+IMAGE_PROVIDERS = ("openai-compatible",)
 
 __all__ = ["EnvOverrideSummary", "apply_env_overlay", "summarize_env_overrides"]
 
@@ -165,24 +172,74 @@ def apply_env_overlay(
             applied.append(("OMNI_EMBEDDING_CACHE_DIR", "client.embedding.cache_dir", emb_cache_dir))
 
     # ------------------------- search -------------------------
+    search_provider = _env(env, "OMNI_SEARCH_PROVIDER")
+    search_base_url = _env(env, "OMNI_SEARCH_BASE_URL")
     search_region = _env(env, "OMNI_SEARCH_REGION")
     search_safesearch = _env(env, "OMNI_SEARCH_SAFESEARCH")
-    _env(env, "OMNI_SEARCH_PROVIDER")  # 今は "ddgs" のみ（将来の拡張点）
     search = client.search
-    if search_region or search_safesearch:
+    if search_provider and search_provider not in SEARCH_PROVIDERS:
+        raise ValueError(
+            f"OMNI_SEARCH_PROVIDER={search_provider!r} is not a known provider. "
+            f"Allowed: {', '.join(SEARCH_PROVIDERS)}"
+        )
+    if search_provider or search_base_url or search_region or search_safesearch:
+        provider = search_provider or (search.provider if search else "ddgs")
+        base_url = search_base_url or (search.base_url if search else None)
+        if search_base_url and provider != "openai-compatible":
+            raise ValueError(
+                "OMNI_SEARCH_BASE_URL is only used with OMNI_SEARCH_PROVIDER=openai-compatible "
+                f"(provider resolved to {provider!r})"
+            )
+        if provider == "openai-compatible" and not base_url:
+            raise ValueError(
+                "OMNI_SEARCH_PROVIDER=openai-compatible requires OMNI_SEARCH_BASE_URL "
+                "(e.g. http://127.0.0.1:8080/v1) or client.search.base_url"
+            )
         search = SearchSection(
-            provider=search.provider if search else "ddgs",  # type: ignore[arg-type]
+            provider=provider,  # type: ignore[arg-type]
             region=search_region if search_region else (search.region if search else "ja-jp"),
             safesearch=(  # type: ignore[arg-type]
                 search_safesearch
                 if search_safesearch
                 else (search.safesearch if search else "on")
             ),
+            base_url=base_url,
+            backend=search.backend if search else None,
         )
+        if search_provider:
+            applied.append(("OMNI_SEARCH_PROVIDER", "client.search.provider", search_provider))
+        if search_base_url:
+            applied.append(("OMNI_SEARCH_BASE_URL", "client.search.base_url", search_base_url))
         if search_region:
             applied.append(("OMNI_SEARCH_REGION", "client.search.region", search_region))
         if search_safesearch:
             applied.append(("OMNI_SEARCH_SAFESEARCH", "client.search.safesearch", search_safesearch))
+
+    # ------------------------- image -------------------------
+    image_provider = _env(env, "OMNI_IMAGE_PROVIDER")
+    image_base_url = _env(env, "OMNI_IMAGE_BASE_URL")
+    image = client.image
+    if image_provider and image_provider not in IMAGE_PROVIDERS:
+        raise ValueError(
+            f"OMNI_IMAGE_PROVIDER={image_provider!r} is not a known provider. "
+            f"Allowed: {', '.join(IMAGE_PROVIDERS)}"
+        )
+    if image_provider or image_base_url:
+        if image_provider is None and image is None:
+            raise ValueError(
+                "OMNI_IMAGE_BASE_URL requires a provider (set OMNI_IMAGE_PROVIDER or configure client.image)"
+            )
+        base_url = image_base_url or (image.base_url if image else None)
+        if not base_url:
+            raise ValueError(
+                "OMNI_IMAGE_PROVIDER=openai-compatible requires OMNI_IMAGE_BASE_URL "
+                "(e.g. http://127.0.0.1:8080/v1) or client.image.base_url"
+            )
+        image = ImageSection(provider="openai-compatible", base_url=base_url, model=image.model if image else None)
+        if image_provider:
+            applied.append(("OMNI_IMAGE_PROVIDER", "client.image.provider", image_provider))
+        if image_base_url:
+            applied.append(("OMNI_IMAGE_BASE_URL", "client.image.base_url", image_base_url))
 
     # ------------------------- audio -------------------------
     audio_speech = _env(env, "OMNI_AUDIO_SPEECH")
@@ -260,6 +317,7 @@ def apply_env_overlay(
         embedding=emb,
         rerank=client.rerank,
         search=search,
+        image=image,
         doc_parser=doc_parser,
         judge=judge,
         audio=audio,
@@ -295,8 +353,12 @@ def summarize_env_overrides(environ: Mapping[str, str] | None = None) -> list[st
         "OMNI_EMBEDDING_PROVIDER",
         "OMNI_EMBEDDING_MODEL",
         "OMNI_EMBEDDING_CACHE_DIR",
+        "OMNI_SEARCH_PROVIDER",
+        "OMNI_SEARCH_BASE_URL",
         "OMNI_SEARCH_REGION",
         "OMNI_SEARCH_SAFESEARCH",
+        "OMNI_IMAGE_PROVIDER",
+        "OMNI_IMAGE_BASE_URL",
         "OMNI_AUDIO_SPEECH",
         "OMNI_AUDIO_TRANSCRIPTION",
         "OMNI_AUDIO_VOICE",

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .compat import PlatformCompat
 
@@ -29,7 +29,9 @@ __all__ = [
     "ClientSection",
     "ConfigIssue",
     "EmbeddingSection",
+    "ImageSection",
     "OmniConfig",
+    "SearchSection",
     "config_dir",
     "config_path",
     "dump_toml",
@@ -109,9 +111,30 @@ class RerankSection(_Strict):
 
 
 class SearchSection(_Strict):
-    provider: Literal["ddgs"] = "ddgs"
+    # "openai-compatible" は前段プロキシの ``{base_url}/search``（base_url が必須）
+    provider: Literal["ddgs", "openai-compatible"] = "ddgs"
     region: str = "ja-jp"
     safesearch: Literal["on", "moderate", "off"] = "on"
+    base_url: str | None = None
+    backend: str | None = None  # プロキシが決めた検索の名前（省略＝プロキシの既定）
+
+    @model_validator(mode="after")
+    def _needs_base_url(self) -> SearchSection:
+        if self.provider == "openai-compatible" and not self.base_url:
+            raise ValueError("client.search.provider = 'openai-compatible' needs base_url (e.g. http://127.0.0.1:8080/v1)")
+        return self
+
+
+class ImageSection(_Strict):
+    provider: Literal["openai-compatible"] = "openai-compatible"
+    base_url: str | None = None
+    model: str | None = None
+
+    @model_validator(mode="after")
+    def _needs_base_url(self) -> ImageSection:
+        if not self.base_url:
+            raise ValueError("client.image.provider = 'openai-compatible' needs base_url (e.g. http://127.0.0.1:8080/v1)")
+        return self
 
 
 class DocParserSection(_Strict):
@@ -143,6 +166,7 @@ class ClientSection(_Strict):
     embedding: EmbeddingSection | None = None
     rerank: RerankSection | None = None
     search: SearchSection | None = None
+    image: ImageSection | None = None
     doc_parser: DocParserSection | None = None
     judge: JudgeSection | None = None
     audio: AudioSection | None = None
