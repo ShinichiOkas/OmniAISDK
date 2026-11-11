@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ._audio_base import AudioRouter
     from ._doc_base import MimeRoutingDocumentParser
+    from .anthropic import AnthropicChatAdapter
     from .ddgs import DDGSSearchAdapter
     from .docker import DockerSandboxAdapter
     from .edge_tts import EdgeTTSAudioAdapter
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from .web_fetch import HttpxWebFetchAdapter
 
 _LAZY = {
+    "AnthropicChatAdapter": ".anthropic",
     "DockerSandboxAdapter": ".docker",
     "AudioRouter": "._audio_base",
     "EdgeTTSAudioAdapter": ".edge_tts",
@@ -61,6 +63,7 @@ _LAZY = {
 
 __all__ = [
     "AgnesChatAdapter",
+    "AnthropicChatAdapter",
     "AudioRouter",
     "DDGSSearchAdapter",
     "DockerSandboxAdapter",

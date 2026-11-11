@@ -42,7 +42,13 @@ class ModelInfo:
 
 # 既知の有名モデルの文脈長（2026-11 時点の目安。古くなる前提で、取れないときの最後の砦）
 STATIC_CONTEXT_WINDOWS: dict[str, int] = {
-    # Anthropic
+    # Anthropic（Claude 5 系は 1M。旧表の 4 系は別票で見直す）
+    "claude-fable-5-1": 1_000_000,
+    "claude-opus-5-5": 1_000_000,
+    "claude-opus-5": 1_000_000,
+    "claude-sonnet-5-5": 1_000_000,
+    "claude-sonnet-5": 1_000_000,
+    "claude-haiku-5-5": 1_000_000,
     "claude-opus-4-8": 200_000,
     "claude-opus-4-6": 200_000,
     "claude-sonnet-4-6": 200_000,

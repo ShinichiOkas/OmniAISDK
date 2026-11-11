@@ -50,6 +50,10 @@ def _chat_adapter(cfg: OmniConfig, name: str, model: str | None) -> ChatCapabili
         from .providers.ollama import OllamaCloudChatAdapter
 
         return OllamaCloudChatAdapter(**kw)
+    if name == "anthropic":
+        from .providers.anthropic import AnthropicChatAdapter
+
+        return AnthropicChatAdapter(**kw)
     from .providers import openai_compatible as oc
 
     classes: dict[str, type[oc.OpenAICompatibleChatAdapter]] = {

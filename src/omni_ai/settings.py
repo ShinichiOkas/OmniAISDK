@@ -43,7 +43,9 @@ __all__ = [
     "validate_files",
 ]
 
-ChatProvider = Literal["gemini", "ollama", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible"]
+ChatProvider = Literal[
+    "gemini", "ollama", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible", "anthropic"
+]
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,9 @@ CHAT_PROVIDERS: dict[str, ChatProviderInfo] = {
     ),
     "openai-compatible": ChatProviderInfo(
         "OpenAI 互換サーバー（llama.cpp など）", needs_base_url=True, model_example="local-model"
+    ),
+    "anthropic": ChatProviderInfo(
+        "Anthropic（Claude）", ("ANTHROPIC_API_KEY",), True, model_example="claude-sonnet-5-5"
     ),
 }
 
@@ -181,6 +186,7 @@ class OmniConfig(_Strict):
     agnes: ApiConnection | None = None
     openrouter: ApiConnection | None = None
     openai_compatible: ApiConnection | None = Field(default=None, alias="openai-compatible")
+    anthropic: ApiConnection | None = None
 
     def connection(self, provider: str) -> Any:
         """プロバイダー名（"ollama-cloud" など）→ 接続設定。"""

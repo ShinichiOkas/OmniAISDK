@@ -68,7 +68,7 @@ def _save_and_validate(io: IO, raw: dict[str, Any]) -> None:
 
 
 # 鍵を入れるプロバイダー（メニューの並び順。Gemini を先頭に固定）
-_KEY_PROVIDERS = ["gemini", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible"]
+_KEY_PROVIDERS = ["gemini", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible", "anthropic"]
 
 
 def _save_key(io: IO, name: str) -> None:
@@ -138,6 +138,9 @@ def _remote_chat_models(name: str) -> list[str]:
             )
             data = httpx.get(f"{base.rstrip('/')}/api/tags", headers=headers, timeout=10).json()
             names = [m.get("name", "") for m in data.get("models") or []]
+        elif name == "anthropic":
+            # Messages API の /v1/models は x-api-key 認証。一覧は手入力でよいので取りに行かない
+            return []
         else:
             from ..providers import openai_compatible as oc
 

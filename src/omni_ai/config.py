@@ -27,6 +27,7 @@ PROVIDER_ENV_VARS: dict[tuple[str, str], tuple[str, ...]] = {
     ("xai", "api_key"): ("XAI_API_KEY",),
     ("agnes", "api_key"): ("AGNES_API_KEY",),
     ("openrouter", "api_key"): ("OPENROUTER_API_KEY",),
+    ("anthropic", "api_key"): ("ANTHROPIC_API_KEY",),
 }
 
 _SECRET_KEYS = {"api_key", "token", "secret"}
