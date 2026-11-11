@@ -1049,7 +1049,7 @@ Ollama:
 | 履歴の整形 | 連続する同じ役割は 1 つにまとめる。ツール結果は 1 つの user に並べ（`tool_result` を先頭）、tool_use の id は `[a-zA-Z0-9_-]` に直す（他社の id でも往復できる） |
 | メディア | 画像（base64 / URL）と PDF（`document`）。音声・動画・FileRef は `UnsupportedFeatureError` |
 | usage | `input_tokens` はキャッシュを含まない。`prompt_tokens = input + cache_read + cache_creation`、`cached_tokens = cache_read`。思考トークンの内訳は API が返さないので `reasoning_tokens` は 0 のまま（推測で分けない。J-07） |
-| ストリーム | `message_start`（入力側 usage）と `message_delta`（出力側・累積）を合わせる。`input_json_delta` を `content_block_stop` で組み立てて `tool_call` を出す。**HTTP 200 のまま届く `error` イベントは例外にする**。`message_stop` も `stop_reason` も無く終われば `StreamInterruptedError`。ping と知らないイベント・ブロックは読み飛ばす |
+| ストリーム | `message_start`（入力側 usage）と `message_delta`（出力側・累積）を合わせる。`input_json_delta` を `content_block_stop` で組み立てて `tool_call` を出す。**HTTP 200 のまま届く `error` イベントは例外にする**。`message_stop` も `stop_reason` も無く終われば、再試行しない `ProviderOverloadedError`（出力が出たあとは基底の規則で `StreamInterruptedError` に包まれる）。ping と知らないイベント・ブロックは読み飛ばす |
 | エラー | 400→InvalidRequest（"prompt is too long"→ContextLengthExceeded、"not supported"→UnsupportedFeature）、401→Authentication、402→Quota、403→PermissionDenied、404→NotFound、429→RateLimit（`retry-after`）、5xx と 529→ProviderOverloaded（再試行） |
 | 設定 | `[anthropic]`（`base_url` / `api_key`）。`client.chat.models.anthropic` が必須（既定のモデルを持たない。J-02）。メニューには末尾に追加（番号の既存の並びを動かさない）。モデル一覧は取りに行かず手入力 |
 | 文脈長の表 | `STATIC_CONTEXT_WINDOWS` に Claude 5 系（1M）を追加 |

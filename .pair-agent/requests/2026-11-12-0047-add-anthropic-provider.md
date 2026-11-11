@@ -10,11 +10,11 @@
 - 状態: 確認待ち（機械検査は通過。実 API は師匠の検収待ち）
 - 確認欄（2026-11-12 01:05 JST）:
   - `python -m pytest -m "not live"` → 514 passed, 5 skipped（skip は既存の extras 未導入）。うち Anthropic は契約 38 件＋配線 5 件
-  - `ruff check`（自分のファイル）クリア・`ruff format --check` クリア。`ruff check .` 全体は既存コード由来の指摘（builder.py:138 ほか）で非 0（今回の変更ではない・票）
-  - `mypy` は 30 件で変化なし（fastembed / web_fetch の既存分。anthropic 由来 0 件）
+  - 基準線との比較（git worktree で 92c3ed9 と今を同じ道具で実行し、行番号を除いて diff）: `ruff check .` は基準 99 件・今 99 件で**差 0**、`mypy` は基準 30 件・今 30 件で**差 0**。どちらも終了コードは非 0（既存コード由来。今回の変更による新規 0 件）。自分のファイルの ruff check / format は通過
+  - 依頼の合否条件「ruff check . と mypy が終了コード 0」は**満たしていない**（既存の指摘が原因・票）。pytest は 0
   - 偽の上流（respx）で generate / stream / async / tools / 構造化出力 / 画像・PDF / 思考の往復 / エラー写像 / 再試行 / フォールバックを確認
   - **実際の Anthropic API は未確認**（鍵なし）。`tests/live/test_live_anthropic.py` は ANTHROPIC_API_KEY と OMNI_LIVE_ANTHROPIC_MODEL があれば走る（未実行）
-- 報告した時刻: 2026-11-12 01:06 JST
+- 報告した時刻: 2026-11-12 01:12 JST
 
 ## 判断（推奨で進めた。覆したいものだけ言えばよい）
 - J-A1: 公式 SDK は依存に入れず、既存の `_http`（httpx）で Messages API を直接叩く独自 codec（Gemini と同方式）。理由: 本リポジトリは SDK 非依存の sans-IO 構造。

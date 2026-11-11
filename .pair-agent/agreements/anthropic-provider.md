@@ -1,5 +1,5 @@
 ---
-sprint_id: 7d3e2a40-5b1c-4f60-9a2e-anthropic0112
+sprint_id: 7d3e2a40-5b1c-4f60-9a2e-0112a0f10c47
 version: 1
 status: done
 created_at: 2026-11-12T00:47:00+09:00
@@ -27,6 +27,7 @@ AI プロバイダー（Chat）に Anthropic を加える。
 - J-A6: 応答の content ブロック列を `provider_state` にそのまま残して返す（thinking の署名）
 - J-A7: サーバーツール（web_search など）は未対応（票）。`strict` は送らない
 - J-A8: メニューの並びは末尾に追加（既存の番号を動かさない）
+- J-A9: main へ直接 push（このリポジトリの履歴に合わせた。覆したければ言う）
 
 ## 実装設計書
 
