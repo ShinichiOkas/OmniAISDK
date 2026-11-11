@@ -1299,3 +1299,4 @@ v3.0 / v3.1 仕様により、機能面の網羅性（全10領域のプロバイ
 | D-25 | §2, §4, §5 | Audio を実装（合成: edge-tts、認識: faster-whisper、AudioRouter で束ねる）。`speak(voice=None)` に変更、`AudioTranscriptionResponse` に `segments` / `language_probability` を追加 | 実装設計書 §20 |
 | D-26 | §4, §9.3 | Sandbox をローカルの Docker（docker CLI）で実装。`SandboxExecutionResult` に `files` / `timed_out` を追加。`PlatformCompat.resolve_docker()` を追加 | 実装設計書 §22 |
 | D-27 | §2, §9.4 | Chat のプロバイダーに xAI・Agnes・OpenRouter・Ollama Cloud・OpenAI 互換サーバー（`openai-compatible`）を追加。`OMNI_<P>_<K>` は名前のハイフンを `_` にする | 実装設計書 §25 |
+| D-28 | §2, §9.4 | Chat のプロバイダーに Anthropic（`anthropic`。Messages API のネイティブ codec、公式 SDK 非依存）を追加。`provider_state` に応答の content ブロック列を残して thinking の署名を往復させる | 実装設計書 §26 |

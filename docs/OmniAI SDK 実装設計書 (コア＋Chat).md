@@ -1032,3 +1032,32 @@ Ollama:
 - live テスト: `tests/live/test_live_openai_compatible.py`（`OMNI_LIVE_OPENAI_COMPATIBLE=<base_url>` と `..._MODEL`）
 
 **未確認**: xAI・Agnes・OpenRouter・Ollama Cloud は実物に繋いでいない（キーが無い）。契約テストの応答は OpenAI の公開仕様に沿った合成データ。各社の usage の有無、推論の項目名、ツール呼び出しの分割の仕方、Agnes の json_schema 対応、Ollama Cloud の /api/show の有無は、実物で確かめるまで推測。
+
+
+## 26. Chat プロバイダーの追加（Anthropic）（2026-11-12）
+
+師匠の指示: 「AIプロバイダーにAnthropicを加えてください」。`providers/anthropic/`（`AnthropicChatAdapter`、`provider_name = "anthropic"`）。OpenAI 互換ではなく **Messages API（`POST /v1/messages`）のネイティブ codec**。
+
+| 項目 | 内容 |
+| :--- | :--- |
+| 接続先・認証 | 既定 `https://api.anthropic.com`。ヘッダー `x-api-key` と `anthropic-version: 2023-06-01`。キーは必須（`OMNI_ANTHROPIC_API_KEY` → `ANTHROPIC_API_KEY` → secrets.toml） |
+| 依存 | 公式 SDK は入れない。他のアダプターと同じ `_http`（httpx）の sans-IO 構造（codec は I/O を持たない） |
+| 要求 | system は最上位の `system`。tools は `input_schema`。`tool_choice` は auto / none / required→`any` / 関数名→`tool`。`max_tokens` は必須なので既定 16000（`default_max_tokens=` または呼び出しごとの `max_tokens=`） |
+| 送るものは指定されたものだけ | 新しいモデルは既定外のサンプリング指定・強制の `tool_choice`・`budget_tokens` を 400 で断る。codec はモデルごとの書き換えをせず、その 400（"not supported"）を `UnsupportedFeatureError` に写す |
+| 構造化出力 | `output_config.format`（json_schema。object ごとに `additionalProperties: false` を補う）＋指示文（J-04）。`anthropic={"response_format": "prompt"}` で指示文だけ |
+| 思考 | `anthropic={"thinking": {"type": "adaptive"}, "effort": "high"}` を素通し。応答の `content` ブロック列（thinking の署名を含む）を `provider_state["anthropic"]["content"]` にそのまま残し、次の要求でそのまま返す。他社の `provider_state` は読まず、共通の形から組み直す |
+| 履歴の整形 | 連続する同じ役割は 1 つにまとめる。ツール結果は 1 つの user に並べ（`tool_result` を先頭）、tool_use の id は `[a-zA-Z0-9_-]` に直す（他社の id でも往復できる） |
+| メディア | 画像（base64 / URL）と PDF（`document`）。音声・動画・FileRef は `UnsupportedFeatureError` |
+| usage | `input_tokens` はキャッシュを含まない。`prompt_tokens = input + cache_read + cache_creation`、`cached_tokens = cache_read`。思考トークンの内訳は API が返さないので `reasoning_tokens` は 0 のまま（推測で分けない。J-07） |
+| ストリーム | `message_start`（入力側 usage）と `message_delta`（出力側・累積）を合わせる。`input_json_delta` を `content_block_stop` で組み立てて `tool_call` を出す。**HTTP 200 のまま届く `error` イベントは例外にする**。`message_stop` も `stop_reason` も無く終われば `StreamInterruptedError`。ping と知らないイベント・ブロックは読み飛ばす |
+| エラー | 400→InvalidRequest（"prompt is too long"→ContextLengthExceeded、"not supported"→UnsupportedFeature）、401→Authentication、402→Quota、403→PermissionDenied、404→NotFound、429→RateLimit（`retry-after`）、5xx と 529→ProviderOverloaded（再試行） |
+| 設定 | `[anthropic]`（`base_url` / `api_key`）。`client.chat.models.anthropic` が必須（既定のモデルを持たない。J-02）。メニューには末尾に追加（番号の既存の並びを動かさない）。モデル一覧は取りに行かず手入力 |
+| 文脈長の表 | `STATIC_CONTEXT_WINDOWS` に Claude 5 系（1M）を追加 |
+
+**未確認**: 実際の Anthropic API には繋いでいない（キーが無い）。契約テスト（`tests/contract/test_anthropic.py`）の応答は公開仕様に沿った合成データ。thinking の署名つき往復、`output_config.format` の受理、各モデルの 400 の文言、ストリームの細部は、実物で確かめるまで推測。
+
+**未対応（票）**:
+- サーバーツール（`web_search` / `code_execution`）: `supported_builtins` は空。足すには tool type の版（`web_search_20260209` など）と `server_tool_use` ブロックの往復が要る
+- `ToolDefinition.strict`: 送らない（Gemini と同じ。strict は `additionalProperties: false` を要求する）
+- Haiku 5.5 の単価は 100K トークンで段階が変わるので、単価表に入れる場合は利用者が決める（J-08: 不明は None）
+- `STATIC_CONTEXT_WINDOWS` の Claude 4 系（200K）は古い可能性がある（今回は触らない）

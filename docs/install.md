@@ -33,6 +33,7 @@ SDK は Python 側のものだけを入れます。次のものは、必要に�
 | [Docker](https://docs.docker.com/get-started/get-docker/) | コード実行（Sandbox） | Docker Desktop は **Linux コンテナのモード**。Linux では利用者を `docker` グループに入れる |
 | Gemini の API キー | Gemini の Chat・埋め込み | [Google AI Studio](https://aistudio.google.com/) で発行 |
 | xAI / Agnes / OpenRouter / Ollama Cloud の API キー | それぞれの Chat | 各社の画面で発行（環境変数は `XAI_API_KEY` / `AGNES_API_KEY` / `OPENROUTER_API_KEY` / `OLLAMA_API_KEY`） |
+| Anthropic の API キー | `anthropic` の Chat | [Anthropic Console](https://console.anthropic.com/) で発行（環境変数は `ANTHROPIC_API_KEY`） |
 | OpenAI 互換サーバー（llama.cpp の `llama-server` など） | `openai-compatible` の Chat | 自分で起動しておく。接続先の URL は必須（既定値なし）、キーは任意 |
 
 ## 3. 設定ファイル
@@ -76,7 +77,7 @@ whisper_model = "medium"
 provider = "docker"
 ```
 
-Chat のプロバイダーは `gemini` / `ollama` / `ollama-cloud` / `xai` / `agnes` / `openrouter` / `openai-compatible` から選べます。Gemini 以外は既定のモデルが無いので、`models` に書いてください。
+Chat のプロバイダーは `gemini` / `ollama` / `ollama-cloud` / `xai` / `agnes` / `openrouter` / `openai-compatible` / `anthropic` から選べます。Gemini 以外は既定のモデルが無いので、`models` に書いてください。
 
 ```toml
 # config.toml（Chat をクラウドと手元のサーバーで組む例）
@@ -95,7 +96,12 @@ api_key = "..."
 
 [openrouter]
 api_key = "..."
+
+[anthropic]                  # 環境変数 ANTHROPIC_API_KEY でもよい
+api_key = "..."
 ```
+
+Anthropic のモデルは `models = { anthropic = "claude-sonnet-5-5" }` のように書きます。`max_tokens`（API の必須項目）を渡さない呼び出しには 16000 を送ります（`AnthropicChatAdapter(default_max_tokens=...)` か呼び出しごとの `max_tokens=` で変えられます）。
 
 API キーや接続先は、次の順で探します: 引数 → `OMNI_<PROVIDER>_<KEY>`（名前のハイフンは `_`。例: `OMNI_OLLAMA_CLOUD_API_KEY`）→ 各社の環境変数（`GEMINI_API_KEY` など）→ `secrets.toml` → `config.toml`。
 
