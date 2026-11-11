@@ -128,9 +128,7 @@ def _assistant_blocks(msg: ChatMessage) -> list[dict[str, Any]]:
     return blocks
 
 
-def build_messages(
-    messages: list[ChatMessage], inline_limit: int
-) -> tuple[str | None, list[dict[str, Any]]]:
+def build_messages(messages: list[ChatMessage], inline_limit: int) -> tuple[str | None, list[dict[str, Any]]]:
     """(system, messages)。連続する同じ役割は 1 つにまとめる（ツール結果は 1 つの user に並べる）。"""
     system_texts: list[str] = []
     out: list[dict[str, Any]] = []
