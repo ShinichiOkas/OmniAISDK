@@ -100,10 +100,8 @@ def test_dead_upstream_gate_context_manager():
         return clock[0]
 
     gate = DeadUpstreamGate("p", cooldown_seconds=30.0, now=now)
-    with pytest.raises(httpx.ConnectError):
-        with gate:
-            raise httpx.ConnectError("boom")
+    with pytest.raises(httpx.ConnectError), gate:
+        raise httpx.ConnectError("boom")
     # コンテキストマネージャ内で接続エラー → 冷却中
-    with pytest.raises(UpstreamUnreachableError):
-        with gate:
-            pass
+    with pytest.raises(UpstreamUnreachableError), gate:
+        pass

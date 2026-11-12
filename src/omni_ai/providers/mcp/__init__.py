@@ -191,7 +191,7 @@ class MCPClientAdapter(MCPCapability):
         async def _cb(message: Any) -> None:
             try:
                 await handler(message)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("mcp notification handler raised", exc_info=True)
 
         return _cb

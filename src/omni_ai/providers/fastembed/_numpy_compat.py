@@ -12,10 +12,7 @@ sentence-transformers の ``encode(normalize_embeddings=True)`` と、呼び出�
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np
+from typing import Any
 
 __all__ = ["normalize_bit_compat", "vectors_to_float32_array"]
 

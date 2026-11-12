@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 __all__ = ["SpeechSpan", "detect_markup", "parse_speech_markup"]
 
@@ -77,7 +77,7 @@ def _percent(value: str) -> int:
     if v.endswith("%"):
         v = v[:-1]
     try:
-        return int(round(float(v)))
+        return round(float(v))
     except ValueError:
         return 0
 
@@ -93,7 +93,7 @@ def _hz(value: str) -> int:
     if v.endswith("%"):
         v = v[:-1]
     try:
-        return int(round(float(v)))
+        return round(float(v))
     except ValueError:
         return 0
 
@@ -102,16 +102,16 @@ def _duration_ms(value: str) -> int:
     v = value.strip().lower()
     if v.endswith("ms"):
         try:
-            return int(round(float(v[:-2])))
+            return round(float(v[:-2]))
         except ValueError:
             return 0
     if v.endswith("s"):
         try:
-            return int(round(float(v[:-1]) * 1000))
+            return round(float(v[:-1]) * 1000)
         except ValueError:
             return 0
     try:
-        return int(round(float(v)))
+        return round(float(v))
     except ValueError:
         return 0
 
@@ -212,7 +212,7 @@ def _parse_markdown(text: str) -> list[SpeechSpan]:
 # ---------- 公開 ----------
 
 
-def parse_speech_markup(text: str, markup: Optional[Markup] = None) -> list[SpeechSpan]:
+def parse_speech_markup(text: str, markup: Markup | None = None) -> list[SpeechSpan]:
     """``text`` を記法に沿って区間に割る。``markup`` が ``None`` なら形から推測する。"""
     if not text or not text.strip():
         return []

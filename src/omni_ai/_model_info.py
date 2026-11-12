@@ -11,13 +11,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
-    "ModelInfo",
     "STATIC_CONTEXT_WINDOWS",
+    "ModelInfo",
     "parse_ollama_show",
     "parse_ollama_tags",
     "parse_openrouter_models",
@@ -183,10 +184,8 @@ def parse_openrouter_models(data: dict[str, Any]) -> dict[str, ModelInfo]:
         p = item.get("pricing") or {}
         for key in ("prompt", "completion"):
             v = p.get(key)
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 pricing["input" if key == "prompt" else "output"] = float(v) if v is not None else 0.0
-            except (TypeError, ValueError):
-                pass
         architecture = item.get("architecture") or {}
         modalities = architecture.get("input_modalities") or []
         supports_vision = "image" in modalities if isinstance(modalities, list) else None

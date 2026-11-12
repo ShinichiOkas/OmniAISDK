@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import httpx
-import pytest
 import respx
 
 from omni_ai.providers.pypdf import PyPDFDocumentParser
@@ -32,8 +33,6 @@ def test_webfetch_passes_pdf_bytes_to_parser(tmp_path):
     assert page.markdown == ""
     # Parser に渡せることだけ確かめる（parse 自体の成否は内容依存なので問わない）
     parser = PyPDFDocumentParser()
-    try:
+    # 本物の PDF ではないので parse は失敗してよい。raw_bytes を parser に渡せた、で十分
+    with contextlib.suppress(Exception):
         parser.parse(page.raw_bytes, mime_type="application/pdf")
-    except Exception:
-        # 本物の PDF ではないので parse は失敗してよい。raw_bytes を parser に渡せた、で十分
-        pass

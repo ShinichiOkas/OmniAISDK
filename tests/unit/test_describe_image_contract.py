@@ -30,7 +30,7 @@ def _image_message(prompt: str = "describe") -> ChatMessage:
 def test_gemini_sends_image_part_as_inline_data():
     _, contents = gemini_build_contents([_image_message()], inline_limit=10_000_000)
     parts = contents[-1]["parts"]
-    kinds = [list(p.keys())[0] for p in parts]
+    kinds = [next(iter(p.keys())) for p in parts]
     assert "text" in kinds
     # インライン画像は inlineData か fileData のいずれかで出る
     assert any(k in ("inlineData", "fileData") for k in kinds)

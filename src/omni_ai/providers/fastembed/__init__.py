@@ -60,7 +60,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         local_files_only: bool = False,
         batch_size: int = 64,
         model_factory: ModelFactory | None = None,
-        tokenizer_donor: "FastEmbedEmbeddingAdapter | None" = None,
+        tokenizer_donor: FastEmbedEmbeddingAdapter | None = None,
         bit_compat_normalize: bool = True,
     ) -> None:
         self.default_model: str = model
@@ -97,7 +97,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         """モデルを読み込む（初回の embed でも自動で呼ばれる）。スレッド安全。"""
         self._lazy.get()
 
-    def _encode_array(self, texts: list[str]) -> "np.ndarray":
+    def _encode_array(self, texts: list[str]) -> np.ndarray:
         """fastembed の反復子を float32 の 2 次元 ``np.ndarray`` に集める（0 コピーに近い道）。"""
         import numpy as np
 
@@ -105,7 +105,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         vecs = list(model.embed(texts, batch_size=self.batch_size))
         return np.asarray(vecs, dtype=np.float32)
 
-    def _normalize_array(self, arr: "np.ndarray") -> "np.ndarray":
+    def _normalize_array(self, arr: np.ndarray) -> np.ndarray:
         if self.bit_compat_normalize:
             return normalize_bit_compat(arr)
         # pure-Python 流の L2（丸めが異なるので保存済みベクトルと bit 一致しない）
@@ -162,7 +162,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         texts: str | Sequence[str],
         *,
         normalize: bool = True,
-    ) -> "np.ndarray":
+    ) -> np.ndarray:
         """float32 の ``np.ndarray`` を返す（shape: ``(N, dim)``、空なら ``(0,)``）。
 
         下流の ``batch_encode`` 相当と同じ dtype・同じ正規化で、保存済みベクトルと bit 互換。
@@ -183,7 +183,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         texts: str | Sequence[str],
         *,
         normalize: bool = True,
-    ) -> "np.ndarray":
+    ) -> np.ndarray:
         return await anyio.to_thread.run_sync(lambda: self.embed_array(texts, normalize=normalize))
 
     async def aembed(

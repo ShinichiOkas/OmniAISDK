@@ -14,11 +14,9 @@ import pytest
 from omni_ai.providers.edge_tts import (
     DEFAULT_VOICE,
     EdgeTTSAudioAdapter,
-    SpeechSpan,
     parse_speech_markup,
 )
 from omni_ai.providers.edge_tts._markup import detect_markup
-
 
 # ---------- 記法のパース ----------
 
@@ -49,8 +47,8 @@ def test_parse_ssml_break_and_prosody() -> None:
 
 def test_parse_html_strong_increases_emphasis() -> None:
     spans = parse_speech_markup("<strong>Danger</strong> and then calm")
-    strong = [s for s in spans if "Danger" in s.text][0]
-    calm = [s for s in spans if "calm" in s.text][0]
+    strong = next(s for s in spans if "Danger" in s.text)
+    calm = next(s for s in spans if "calm" in s.text)
     assert strong.volume > calm.volume  # 強調で音量が上がる
 
 
@@ -58,9 +56,9 @@ def test_parse_markdown_strong_and_pause() -> None:
     spans = parse_speech_markup("intro **loud** [pause:300ms] rest")
     kinds = [s.kind for s in spans]
     assert "pause" in kinds
-    loud = [s for s in spans if s.text == "loud"][0]
+    loud = next(s for s in spans if s.text == "loud")
     assert loud.rate == 10 and loud.volume == 10
-    pause = [s for s in spans if s.kind == "pause"][0]
+    pause = next(s for s in spans if s.kind == "pause")
     assert pause.pause_ms == 300
 
 
@@ -122,7 +120,7 @@ def fake_edge(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_aspeak_mp3_default(fake_edge) -> None:  # noqa: ARG001
+async def test_aspeak_mp3_default(fake_edge) -> None:
     ad = EdgeTTSAudioAdapter()
     res = await ad.aspeak("hello")
     assert res.format == "mp3"
@@ -130,7 +128,7 @@ async def test_aspeak_mp3_default(fake_edge) -> None:  # noqa: ARG001
 
 
 @pytest.mark.asyncio
-async def test_aspeak_wav_requires_ffmpeg_or_raises(fake_edge, monkeypatch) -> None:  # noqa: ARG001
+async def test_aspeak_wav_requires_ffmpeg_or_raises(fake_edge, monkeypatch) -> None:
     import omni_ai.providers.edge_tts as ett
 
     # ffmpeg が無い想定にする
@@ -143,7 +141,7 @@ async def test_aspeak_wav_requires_ffmpeg_or_raises(fake_edge, monkeypatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_aspeak_rejects_opus(fake_edge) -> None:  # noqa: ARG001
+async def test_aspeak_rejects_opus(fake_edge) -> None:
     from omni_ai.exceptions import UnsupportedFeatureError
 
     ad = EdgeTTSAudioAdapter()
@@ -152,7 +150,7 @@ async def test_aspeak_rejects_opus(fake_edge) -> None:  # noqa: ARG001
 
 
 @pytest.mark.asyncio
-async def test_aspeak_empty_text_raises(fake_edge) -> None:  # noqa: ARG001
+async def test_aspeak_empty_text_raises(fake_edge) -> None:
     from omni_ai.exceptions import InvalidRequestError
 
     ad = EdgeTTSAudioAdapter()

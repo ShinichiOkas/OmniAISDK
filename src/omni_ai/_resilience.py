@@ -31,12 +31,12 @@ import httpx
 from .exceptions import OmniError, ProviderConnectionError
 
 __all__ = [
-    "DEAD_UPSTREAM_ENV",
     "DEAD_UPSTREAM_COOLDOWN_SECONDS",
-    "DeadUpstreamGate",
+    "DEAD_UPSTREAM_ENV",
     "STREAM_IDLE_CODE",
     "STREAM_IDLE_ENV",
     "STREAM_IDLE_TIMEOUT_SECONDS",
+    "DeadUpstreamGate",
     "StreamIdleError",
     "UpstreamUnreachableError",
     "is_httpx_connection_error",
@@ -218,7 +218,7 @@ class DeadUpstreamGate:
         return UpstreamUnreachableError(message, provider=self._provider)
 
     # コンテキストマネージャとして使うと、成功・失敗の報告を自動化できる
-    def __enter__(self) -> "DeadUpstreamGate":
+    def __enter__(self) -> DeadUpstreamGate:
         self.check()
         return self
 
