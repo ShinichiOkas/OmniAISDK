@@ -362,7 +362,8 @@ class WebFetchCapability(Capability):
 
     - ``max_length`` で本文の長さを切る（``offset`` で続きを読む）。切ったら ``truncated=True`` にする
     - ``fetch_images=True`` で本文中の画像を実際にダウンロードし、``images[].data_base64`` に入れる
-    - ``url_filter(url) -> str | None``: リダイレクトの各段で呼ばれる。``None`` 以外（理由の文字列）を返すと止める（SSRF の差し込み口）
+    - ``url_filter(url) -> str | None``: リダイレクトの各段で呼ばれる。
+      ``None`` 以外（理由の文字列）を返すと止める（SSRF の差し込み口）
     - ``extractor="readability"|"trafilatura"``: 本文抽出器（既定 readability + markdownify）
     """
 

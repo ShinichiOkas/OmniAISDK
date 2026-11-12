@@ -189,7 +189,9 @@ def parse_openrouter_models(data: dict[str, Any]) -> dict[str, ModelInfo]:
         architecture = item.get("architecture") or {}
         modalities = architecture.get("input_modalities") or []
         supports_vision = "image" in modalities if isinstance(modalities, list) else None
-        supports_tools = bool(item.get("supported_parameters") and "tools" in (item.get("supported_parameters") or []))
+        supports_tools = bool(
+            item.get("supported_parameters") and "tools" in (item.get("supported_parameters") or [])
+        )
         out[name] = ModelInfo(
             name=name,
             context_window=ctx,

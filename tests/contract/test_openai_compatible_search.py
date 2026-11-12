@@ -47,7 +47,9 @@ def rows(n: int = 2) -> dict:
 
 @respx.mock
 def test_default_request_has_no_backend_and_response_is_mapped() -> None:
-    route = respx.post(URL).mock(return_value=httpx.Response(200, json=rows(), headers={"x-request-id": "r1"}))
+    route = respx.post(URL).mock(
+        return_value=httpx.Response(200, json=rows(), headers={"x-request-id": "r1"})
+    )
     res = make().search("mnemo", max_results=3)
     assert json.loads(route.calls.last.request.content) == {"query": "mnemo", "max_results": 3}
     assert [(r.title, r.url, r.content) for r in res.results] == [
@@ -87,7 +89,10 @@ def test_content_field_is_read_when_snippet_missing_and_bad_rows_skipped() -> No
     }
     respx.post(URL).mock(return_value=httpx.Response(200, json=payload))
     res = make().search("q", max_results=10)
-    assert [(r.url, r.content, r.score) for r in res.results] == [("https://a", "C", None), ("https://b", "S", 0.5)]
+    assert [(r.url, r.content, r.score) for r in res.results] == [
+        ("https://a", "C", None),
+        ("https://b", "S", 0.5),
+    ]
 
 
 @respx.mock
@@ -126,12 +131,15 @@ def test_malformed_response_is_an_error(payload) -> None:
 def test_proxy_errors_raise_and_do_not_fall_back(status: int, exc: type[Exception]) -> None:
     """プロキシの失敗（ellm-proxy は 400/502 を ``{"error":{"message","type"}}`` で返す）は例外のまま。"""
     route = respx.post(URL).mock(
-        return_value=httpx.Response(status, json={"error": {"message": "upstream said no", "type": "search_error"}})
+        return_value=httpx.Response(
+            status, json={"error": {"message": "upstream said no", "type": "search_error"}}
+        )
     )
     with pytest.raises(exc) as ei:
         make(backend="ellm").search("q")
     assert "upstream said no" in str(ei.value)
-    assert all(json.loads(c.request.content)["backend"] == "ellm" for c in route.calls)  # 別の backend で撃ち直さない
+    # 別の backend で撃ち直さない
+    assert all(json.loads(c.request.content)["backend"] == "ellm" for c in route.calls)
 
 
 @respx.mock

@@ -175,7 +175,9 @@ class MCPClientAdapter(MCPCapability):
 
         async def _cb(context: Any, params: Any) -> ElicitResult:
             message = getattr(params, "message", "") or ""
-            schema = getattr(params, "requestedSchema", None) or getattr(params, "requested_schema", None) or {}
+            schema = (
+                getattr(params, "requestedSchema", None) or getattr(params, "requested_schema", None) or {}
+            )
             result = await handler(message, dict(schema))
             # ユーザーの返しは ElicitResult(**dict) で素直に組めるようにしておく
             if isinstance(result, ElicitResult):

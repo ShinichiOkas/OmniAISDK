@@ -135,7 +135,9 @@ def build_client(
         if c.search.provider == "openai-compatible":
             from .providers.openai_compatible.search import OpenAICompatibleSearchAdapter
 
-            parts["search"] = OpenAICompatibleSearchAdapter(base_url=c.search.base_url, backend=c.search.backend)
+            parts["search"] = OpenAICompatibleSearchAdapter(
+                base_url=c.search.base_url, backend=c.search.backend
+            )
         else:
             from .providers.ddgs import DDGSSearchAdapter
 

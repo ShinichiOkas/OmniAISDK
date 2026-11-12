@@ -3,7 +3,8 @@
 - 本文抽出: readability-lxml ＋ markdownify（既定）または trafilatura（任意）
 - 画像: ``<img>`` の src/srcset と「原寸画像を指す ``<a href>``」を拾い、UI 装飾を点数で下げる
 - リダイレクトの各段で ``url_filter`` を呼ぶ（SSRF 対策の差し込み口）
-- 文書系（PDF・docx 等）は本文抽出せず、生バイトを ``raw_bytes`` に残し、呼び出し側で DocumentParser に回す想定
+- 文書系（PDF・docx 等）は本文抽出せず、生バイトを ``raw_bytes`` に残し、
+  呼び出し側で DocumentParser に回す想定
 
 **実運用の実測**（参考のみ・ここは SDK の 1 本目の実装）:
 
@@ -395,7 +396,9 @@ class HttpxWebFetchAdapter(WebFetchCapability):
         body = resp.content[: self.max_bytes]
         meta = ResponseMeta(provider=self.provider_name, model="-")
 
-        if mime in _DOCUMENT_MIMES or (mime.startswith("application/") and not mime.endswith(("json", "xml", "xhtml+xml"))):
+        if mime in _DOCUMENT_MIMES or (
+            mime.startswith("application/") and not mime.endswith(("json", "xml", "xhtml+xml"))
+        ):
             # 文書系・バイナリ系: 本文抽出せず、呼び出し側が DocumentParser に回す想定
             return FetchedPage(
                 markdown="",

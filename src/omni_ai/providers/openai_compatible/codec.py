@@ -276,7 +276,8 @@ def parse_chat_response(data: Mapping[str, Any], req: ChatRequest, *, provider: 
     msg = choice.get("message") or {}
     calls = [_tool_call(tc) for tc in msg.get("tool_calls") or []]
     content = msg.get("content") or None
-    # JSON モード（``response_schema`` あり、または ``provider_options['response_format']='json_object'/'json'``）
+    # JSON モード（``response_schema`` あり、
+    # または ``provider_options['response_format']='json_object'/'json'``）
     # では ``parsed`` を立てる。寛容な取り出し（フェンス剥がし・末尾カンマ修復）を使う。
     parsed: Any = None
     opts = req.options

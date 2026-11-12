@@ -6,7 +6,8 @@
 `resolve_setting` が担うのは接続の中身（``OMNI_<PROVIDER>_<KEY>``）で、こちらは
 **どの機能にどのプロバイダを割り当てるか**（``client.chat.providers`` ほか）を触る。
 
-``ellm-proxy <launch-name>`` のような前段プロキシを挟むときは、起動時に次を立てれば SDK は環境変数だけで切り替わる::
+``ellm-proxy <launch-name>`` のような前段プロキシを挟むときは、
+起動時に次を立てれば SDK は環境変数だけで切り替わる::
 
     $env:OMNI_CHAT_PROVIDER = "openai-compatible"
     $env:OMNI_CHAT_BASE_URL = "http://127.0.0.1:8082"
@@ -15,15 +16,20 @@
 
 変数一覧（左から順に見る。設定が無い項目は TOML / 既定が通る）:
 
-- ``OMNI_CHAT_PROVIDER``: 使う chat プロバイダを 1 本に差し替える。TOML の ``client.chat.providers`` を完全置換
+- ``OMNI_CHAT_PROVIDER``: 使う chat プロバイダを 1 本に差し替える。
+  TOML の ``client.chat.providers`` を完全置換
 - ``OMNI_CHAT_MODEL``: 選ばれた chat プロバイダのモデル
-- ``OMNI_CHAT_BASE_URL``: 選ばれた chat プロバイダの ``base_url``（接続先ごとの TOML/secrets を使う ``resolve_setting`` を介さない直指定）
+- ``OMNI_CHAT_BASE_URL``: 選ばれた chat プロバイダの ``base_url``
+  （接続先ごとの TOML/secrets を使う ``resolve_setting`` を介さない直指定）
 - ``OMNI_EMBEDDING_PROVIDER``・``OMNI_EMBEDDING_MODEL``・``OMNI_EMBEDDING_CACHE_DIR``
-- ``OMNI_SEARCH_PROVIDER``（``ddgs`` | ``openai-compatible``）・``OMNI_SEARCH_BASE_URL``・``OMNI_SEARCH_REGION``・``OMNI_SEARCH_SAFESEARCH``
-  — ``openai-compatible`` は前段プロキシの ``{OMNI_SEARCH_BASE_URL}/search``（``http://127.0.0.1:<port>/v1`` の形）
+- ``OMNI_SEARCH_PROVIDER``（``ddgs`` | ``openai-compatible``）・``OMNI_SEARCH_BASE_URL``・
+  ``OMNI_SEARCH_REGION``・``OMNI_SEARCH_SAFESEARCH``
+  — ``openai-compatible`` は前段プロキシの ``{OMNI_SEARCH_BASE_URL}/search``
+  （``http://127.0.0.1:<port>/v1`` の形）
 - ``OMNI_IMAGE_PROVIDER``（``openai-compatible``）・``OMNI_IMAGE_BASE_URL``
   — 前段プロキシの ``{OMNI_IMAGE_BASE_URL}/images/generations``
-- ``OMNI_AUDIO_SPEECH``・``OMNI_AUDIO_TRANSCRIPTION``・``OMNI_AUDIO_VOICE``・``OMNI_AUDIO_WHISPER_MODEL``・``OMNI_AUDIO_CACHE_DIR``
+- ``OMNI_AUDIO_SPEECH``・``OMNI_AUDIO_TRANSCRIPTION``・``OMNI_AUDIO_VOICE``・
+  ``OMNI_AUDIO_WHISPER_MODEL``・``OMNI_AUDIO_CACHE_DIR``
 - ``OMNI_JUDGE_MODEL``・``OMNI_DOC_PARSER_PROVIDER``
 - ``OMNI_SANDBOX_IMAGE``・``OMNI_SANDBOX_MEMORY``・``OMNI_SANDBOX_NETWORK``（``1``/``0``）
 
@@ -130,7 +136,8 @@ def apply_env_overlay(
             target = chat_provider or (new_providers[0] if new_providers else None)
             if target is None:
                 raise ValueError(
-                    "OMNI_CHAT_MODEL requires a chat provider (set OMNI_CHAT_PROVIDER or configure client.chat.providers)"
+                    "OMNI_CHAT_MODEL requires a chat provider "
+                    "(set OMNI_CHAT_PROVIDER or configure client.chat.providers)"
                 )
             new_models[target] = chat_model
             applied.append(("OMNI_CHAT_MODEL", f"client.chat.models.{target}", chat_model))
@@ -143,7 +150,8 @@ def apply_env_overlay(
         target = chat_provider or (chat.providers[0] if chat else None)
         if target is None:
             raise ValueError(
-                "OMNI_CHAT_BASE_URL requires a chat provider (set OMNI_CHAT_PROVIDER or configure client.chat.providers)"
+                "OMNI_CHAT_BASE_URL requires a chat provider "
+                "(set OMNI_CHAT_PROVIDER or configure client.chat.providers)"
             )
         connections[target] = {"base_url": chat_base_url}
         applied.append(("OMNI_CHAT_BASE_URL", f"{target}.base_url", chat_base_url))
@@ -157,7 +165,8 @@ def apply_env_overlay(
         provider = emb_provider or (emb.provider if emb else None)
         if provider is None:
             raise ValueError(
-                "OMNI_EMBEDDING_MODEL / _CACHE_DIR require a provider (set OMNI_EMBEDDING_PROVIDER or configure client.embedding)"
+                "OMNI_EMBEDDING_MODEL / _CACHE_DIR require a provider "
+                "(set OMNI_EMBEDDING_PROVIDER or configure client.embedding)"
             )
         emb = EmbeddingSection(
             provider=provider,  # type: ignore[arg-type]
@@ -235,7 +244,9 @@ def apply_env_overlay(
                 "OMNI_IMAGE_PROVIDER=openai-compatible requires OMNI_IMAGE_BASE_URL "
                 "(e.g. http://127.0.0.1:8080/v1) or client.image.base_url"
             )
-        image = ImageSection(provider="openai-compatible", base_url=base_url, model=image.model if image else None)
+        image = ImageSection(
+            provider="openai-compatible", base_url=base_url, model=image.model if image else None
+        )
         if image_provider:
             applied.append(("OMNI_IMAGE_PROVIDER", "client.image.provider", image_provider))
         if image_base_url:
@@ -302,7 +313,11 @@ def apply_env_overlay(
         sandbox = SandboxSection(
             image=sb_image if sb_image else (sandbox.image if sandbox else None),
             memory=sb_memory if sb_memory else (sandbox.memory if sandbox else "256m"),
-            network=_bool(sb_network, default=sandbox.network if sandbox else False) if sb_network else (sandbox.network if sandbox else False),
+            network=(
+                _bool(sb_network, default=sandbox.network if sandbox else False)
+                if sb_network
+                else (sandbox.network if sandbox else False)
+            ),
         )
         if sb_image:
             applied.append(("OMNI_SANDBOX_IMAGE", "client.sandbox.image", sb_image))

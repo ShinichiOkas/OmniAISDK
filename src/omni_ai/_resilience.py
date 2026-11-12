@@ -7,8 +7,10 @@
 **なぜこれが要るか（実運用の実測）**
 
 - 失敗したターンの後に背景の呼び出し（自動命名・グラフ構築・スキル自動検出など）が、落ちた上流を 1 本ずつ
-  叩き続ける。SDK の再試行込みで 1 呼び出し 5〜15 秒の待ちが積まれる（票 20261108_Failed_Turn_Keeps_Calling_Dead_Upstream_From_Background_Steps）。
-- Gemini でも同じ必要があるので、判定は差し替え可能にする（票 20261108_Gemini_Provider_Has_No_Dead_Upstream_Gate）。
+  叩き続ける。SDK の再試行込みで 1 呼び出し 5〜15 秒の待ちが積まれる
+  （票 20261108_Failed_Turn_Keeps_Calling_Dead_Upstream_From_Background_Steps）。
+- Gemini でも同じ必要があるので、判定は差し替え可能にする
+  （票 20261108_Gemini_Provider_Has_No_Dead_Upstream_Gate）。
 - 既定の無音の上限は 60 秒・冷却は 30 秒。環境変数で変えられる
   （``OMNI_STREAM_IDLE_SECONDS`` ・ ``OMNI_DEAD_UPSTREAM_SECONDS``・どちらも 0 以下で無効）。
 
@@ -127,8 +129,8 @@ async def with_idle_timeout(
     """``source`` の各チャンクに `idle_seconds` の待ち時間を課す。
 
     最初のチャンクには待ち時間を課さない（接続直後の遅延はよくある）。2 つ目以降は、上限を超えて
-    次が来なければ :class:`StreamIdleError` を投げる。``idle_seconds`` 省略時は環境変数（``OMNI_STREAM_IDLE_SECONDS``）
-    から読む。0 以下なら上限を課さない。
+    次が来なければ :class:`StreamIdleError` を投げる。``idle_seconds`` 省略時は
+    環境変数（``OMNI_STREAM_IDLE_SECONDS``）から読む。0 以下なら上限を課さない。
     """
     limit = idle_seconds if idle_seconds is not None else stream_idle_seconds()
     chunks = 0
