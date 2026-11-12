@@ -6,11 +6,12 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import httpx
 import pytest
 
 from omni_ai.providers.mcp import MCPClientAdapter
-
 
 # ---------- transport の選択 ----------
 
@@ -68,7 +69,7 @@ async def test_wrap_elicitation_calls_user_handler() -> None:
 
     class _Params:
         message = "please confirm"
-        requestedSchema = {"type": "object"}
+        requestedSchema: ClassVar[dict[str, str]] = {"type": "object"}
 
     result = await cb(None, _Params())
     assert seen == [("please confirm", {"type": "object"})]
@@ -86,7 +87,7 @@ async def test_wrap_elicitation_accepts_elicit_result_passthrough() -> None:
 
     class _Params:
         message = ""
-        requestedSchema = {}
+        requestedSchema: ClassVar[dict[str, str]] = {}
 
     result = await cb(None, _Params())
     assert result.action == "decline"

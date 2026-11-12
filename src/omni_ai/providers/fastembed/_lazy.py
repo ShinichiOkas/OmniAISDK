@@ -27,7 +27,7 @@ def default_cache_dir() -> Path:
     return PlatformCompat.get_cache_dir(create=False) / "models"
 
 
-def _donor_internals(donor: "LazyModel | None") -> tuple[Any, dict[str, int], str] | None:
+def _donor_internals(donor: LazyModel | None) -> tuple[Any, dict[str, int], str] | None:
     """読み込み済みの donor から ``(tokenizer, special_token_to_id, model_dir)`` を取り出す。"""
     if donor is None or donor._model is None:
         return None
@@ -90,7 +90,7 @@ class LazyModel:
         cache_dir: Path,
         threads: int | None,
         local_files_only: bool,
-        tokenizer_donor: "LazyModel | None" = None,
+        tokenizer_donor: LazyModel | None = None,
     ) -> None:
         self.model_name = model_name
         self.cache_dir = cache_dir
@@ -143,7 +143,7 @@ class LazyModel:
             te = _open_reusing_tokenizer(donor, **kw)
             self.tokenizer_reused = True
             return te
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "fastembed: reusing the donor tokenizer failed — loading an own copy (holds the GIL ~1s)",
                 exc_info=True,

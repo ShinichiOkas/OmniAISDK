@@ -6,6 +6,8 @@ thoughtSignature が保たれていること。provider_state が無いときは
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from omni_ai.providers.gemini.codec import (
     DUMMY_THOUGHT_SIGNATURE,
     PROVIDER,
@@ -20,7 +22,7 @@ def _make_request():
     # 偽の req を 1 本用意する
     class _Req:
         model = "gemini-3.1-flash-lite"
-        options = {}
+        options: ClassVar[dict[str, object]] = {}
 
     return _Req()
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any, ClassVar, Literal
@@ -24,11 +25,11 @@ import httpx
 
 from ...capabilities import WebFetchCapability
 from ...exceptions import OmniError, ProviderConnectionError
+from ...types import FetchedImage, FetchedPage, ResponseMeta
 
 
 class ProviderError(OmniError):
     """プロバイダー固有の失敗（OmniError の既定で十分な場面で使う）。"""
-from ...types import FetchedImage, FetchedPage, ResponseMeta
 
 __all__ = ["HttpxWebFetchAdapter"]
 
@@ -105,10 +106,8 @@ def _pick_from_srcset(srcset: str) -> str:
         width = 0
         for p in parts[1:]:
             if p.endswith("w"):
-                try:
+                with contextlib.suppress(ValueError):
                     width = int(p[:-1])
-                except ValueError:
-                    pass
         if width > best_w:
             best_w = width
             best_url = url
@@ -396,7 +395,7 @@ class HttpxWebFetchAdapter(WebFetchCapability):
         body = resp.content[: self.max_bytes]
         meta = ResponseMeta(provider=self.provider_name, model="-")
 
-        if mime in _DOCUMENT_MIMES or mime.startswith("application/") and not mime.endswith(("json", "xml", "xhtml+xml")):
+        if mime in _DOCUMENT_MIMES or (mime.startswith("application/") and not mime.endswith(("json", "xml", "xhtml+xml"))):
             # 文書系・バイナリ系: 本文抽出せず、呼び出し側が DocumentParser に回す想定
             return FetchedPage(
                 markdown="",

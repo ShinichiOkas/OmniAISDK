@@ -14,7 +14,7 @@ import asyncio
 import io
 import logging
 import shutil
-import subprocess  # noqa: S404 - ffmpeg の呼び出しに必要
+import subprocess
 import wave
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar, Literal
@@ -53,7 +53,7 @@ def _decode_mp3_to_pcm16_mono(mp3_bytes: bytes) -> tuple[int, bytes]:
         raise UnsupportedFeatureError(
             "WAV output and speak_markup require ffmpeg on PATH", provider="edge-tts"
         )
-    proc = subprocess.run(  # noqa: S603 - 入力は Microsoft からの MP3、exe は PATH 解決後
+    proc = subprocess.run(
         [exe, "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
          "-f", "s16le", "-ac", "1", "-ar", str(_WAV_SR), "pipe:1"],
         input=mp3_bytes, capture_output=True, check=False,

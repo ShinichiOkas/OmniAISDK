@@ -305,7 +305,7 @@ class ToolRunner:
         history = list(messages)
         metas: list[ResponseMeta] = []
 
-        for turn in range(1, self.max_turns + 1):
+        for _turn in range(1, self.max_turns + 1):
             final_response: ChatResponse | None = None
             async for event in self.chat.astream(history, tools=api_tools, **opts):
                 yield event

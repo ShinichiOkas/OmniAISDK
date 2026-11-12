@@ -19,9 +19,8 @@ class _FakeTE:
     def __init__(self, vectors: list[list[float]]) -> None:
         self._vectors = [np.asarray(v, dtype=np.float64) for v in vectors]
 
-    def embed(self, texts, batch_size: int = 64):  # noqa: ARG002 - fastembed の署名に合わせる
-        for v in self._vectors[: len(list(texts))]:
-            yield v
+    def embed(self, texts, batch_size: int = 64):
+        yield from self._vectors[: len(list(texts))]
 
 
 def _factory_for(vectors):

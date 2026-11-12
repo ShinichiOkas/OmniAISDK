@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import logging
 import threading
@@ -210,12 +211,12 @@ class FasterWhisperAudioAdapter(TranscriptionOnlyAudio):
                         last_reported = frac
                         try:
                             on_progress(frac)
-                        except Exception:  # noqa: BLE001
+                        except Exception:
                             logger.debug("transcribe_iter: on_progress raised", exc_info=True)
             if on_progress is not None and duration > 0 and last_reported < 1.0:
                 try:
                     on_progress(1.0)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.debug("transcribe_iter: on_progress raised (final)", exc_info=True)
         except OmniError:
             raise
@@ -254,7 +255,7 @@ class FasterWhisperAudioAdapter(TranscriptionOnlyAudio):
                     **provider_options,
                 ):
                     q.put(seg)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 q.put(("error", exc))
             finally:
                 q.put(sentinel)
@@ -270,10 +271,8 @@ class FasterWhisperAudioAdapter(TranscriptionOnlyAudio):
                 yield item
         finally:
             # worker の完了を待つ（例外でも）
-            try:
+            with contextlib.suppress(Exception):
                 await task
-            except Exception:  # noqa: BLE001
-                pass
 
     def close(self) -> None:
         self._model = None
