@@ -1,5 +1,8 @@
 {
-  "status": "idle",
-  "last_sprint_id": "windows-smoke-test",
-  "last_closed_at": "2026-11-08T18:30:00+09:00"
+  "sprint_id": "875db2c1-3ec1-4d6f-90db-1d0cae6dab37",
+  "status": "executing",
+  "goal": "ローカルプロバイダー（Chat）に mlx-lm を加える（Mac = Apple Silicon 限定）",
+  "size": "M",
+  "created_at": "2026-11-15T16:03:08+09:00",
+  "agreement_path": ".pair-agent/agreements/mlx-lm-provider.md"
 }
