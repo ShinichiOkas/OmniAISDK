@@ -195,12 +195,19 @@ def _ask_chat_model(io: IO, name: str) -> str:
     return io.ask(f"{info.label} のモデル名（例: {info.model_example}） > ").strip()
 
 
+def _chat_choices() -> list[str]:
+    """メニューに出す Chat プロバイダー。mlx-lm は Apple Silicon の Mac でだけ出す。"""
+    from ..providers.mlx_lm import is_supported_platform
+
+    return [p for p in CHAT_PROVIDERS if p != "mlx-lm" or is_supported_platform()]
+
+
 def menu_chat(io: IO) -> None:
     raw = load_config()
     order: list[str] = []
     models: dict[str, str] = {}
     while True:
-        remaining = [p for p in CHAT_PROVIDERS if p not in order]
+        remaining = [p for p in _chat_choices() if p not in order]
         if not remaining:
             break
         pick = _choose(

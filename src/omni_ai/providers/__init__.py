@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .gemini.embedding import GeminiEmbeddingAdapter
     from .markitdown import MarkItDownDocumentParser
     from .mcp import MCPClientAdapter
+    from .mlx_lm import MLXLMChatAdapter
     from .ollama import OllamaChatAdapter, OllamaCloudChatAdapter
     from .ollama.embedding import OllamaEmbeddingAdapter
     from .ollama.judge import OllamaJudgeAdapter
@@ -40,6 +41,7 @@ _LAZY = {
     "EdgeTTSAudioAdapter": ".edge_tts",
     "FasterWhisperAudioAdapter": ".faster_whisper",
     "MCPClientAdapter": ".mcp",
+    "MLXLMChatAdapter": ".mlx_lm",
     "MarkItDownDocumentParser": ".markitdown",
     "MimeRoutingDocumentParser": "._doc_base",
     "PyPDFDocumentParser": ".pypdf",
@@ -75,6 +77,7 @@ __all__ = [
     "GeminiEmbeddingAdapter",
     "HttpxWebFetchAdapter",
     "MCPClientAdapter",
+    "MLXLMChatAdapter",
     "MarkItDownDocumentParser",
     "MimeRoutingDocumentParser",
     "OllamaChatAdapter",

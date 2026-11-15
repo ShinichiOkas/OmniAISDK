@@ -35,6 +35,11 @@ def _base_url(cfg: OmniConfig, provider: str) -> str | None:
 
 def _chat_adapter(cfg: OmniConfig, name: str, model: str | None) -> ChatCapability:
     """Chat プロバイダー名 → アダプター（キーは各アダプターが secrets.toml・環境変数から解決する）。"""
+    if name == "mlx-lm":
+        # プロセス内で動く（接続先もキーも無い）。Apple Silicon の macOS 以外では生成時に断る
+        from .providers.mlx_lm import MLXLMChatAdapter
+
+        return MLXLMChatAdapter(default_model=model)
     kw: dict[str, Any] = {"base_url": _base_url(cfg, name)}
     if model:
         kw["default_model"] = model

@@ -1,0 +1,725 @@
+{
+ "messages": [
+  {
+   "role": "user",
+   "content": "日本の首都はどこ？一言で。"
+  }
+ ],
+ "think": null,
+ "max_tokens": 200,
+ "prompt": "<bos><|turn>system\n<|think|>\n<turn|>\n<|turn>user\n日本の首都はどこ？一言で。<turn|>\n<|turn>model\n",
+ "think_markers": [
+  "<|channel>thought",
+  "<channel|>"
+ ],
+ "chunks": [
+  {
+   "text": "<|channel>",
+   "prompt_tokens": 25,
+   "generation_tokens": 1,
+   "finish_reason": null
+  },
+  {
+   "text": "thought",
+   "prompt_tokens": 25,
+   "generation_tokens": 2,
+   "finish_reason": null
+  },
+  {
+   "text": "\n",
+   "prompt_tokens": 25,
+   "generation_tokens": 3,
+   "finish_reason": null
+  },
+  {
+   "text": "Thinking",
+   "prompt_tokens": 25,
+   "generation_tokens": 4,
+   "finish_reason": null
+  },
+  {
+   "text": " Process",
+   "prompt_tokens": 25,
+   "generation_tokens": 5,
+   "finish_reason": null
+  },
+  {
+   "text": ":",
+   "prompt_tokens": 25,
+   "generation_tokens": 6,
+   "finish_reason": null
+  },
+  {
+   "text": "\n",
+   "prompt_tokens": 25,
+   "generation_tokens": 7,
+   "finish_reason": null
+  },
+  {
+   "text": "1",
+   "prompt_tokens": 25,
+   "generation_tokens": 8,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 9,
+   "finish_reason": null
+  },
+  {
+   "text": "  ",
+   "prompt_tokens": 25,
+   "generation_tokens": 10,
+   "finish_reason": null
+  },
+  {
+   "text": "**",
+   "prompt_tokens": 25,
+   "generation_tokens": 11,
+   "finish_reason": null
+  },
+  {
+   "text": "Analyze",
+   "prompt_tokens": 25,
+   "generation_tokens": 12,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 13,
+   "finish_reason": null
+  },
+  {
+   "text": " Request",
+   "prompt_tokens": 25,
+   "generation_tokens": 14,
+   "finish_reason": null
+  },
+  {
+   "text": ":**",
+   "prompt_tokens": 25,
+   "generation_tokens": 15,
+   "finish_reason": null
+  },
+  {
+   "text": " The",
+   "prompt_tokens": 25,
+   "generation_tokens": 16,
+   "finish_reason": null
+  },
+  {
+   "text": " user",
+   "prompt_tokens": 25,
+   "generation_tokens": 17,
+   "finish_reason": null
+  },
+  {
+   "text": " is",
+   "prompt_tokens": 25,
+   "generation_tokens": 18,
+   "finish_reason": null
+  },
+  {
+   "text": " asking",
+   "prompt_tokens": 25,
+   "generation_tokens": 19,
+   "finish_reason": null
+  },
+  {
+   "text": " \"",
+   "prompt_tokens": 25,
+   "generation_tokens": 20,
+   "finish_reason": null
+  },
+  {
+   "text": "Where",
+   "prompt_tokens": 25,
+   "generation_tokens": 21,
+   "finish_reason": null
+  },
+  {
+   "text": " is",
+   "prompt_tokens": 25,
+   "generation_tokens": 22,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 23,
+   "finish_reason": null
+  },
+  {
+   "text": " capital",
+   "prompt_tokens": 25,
+   "generation_tokens": 24,
+   "finish_reason": null
+  },
+  {
+   "text": " of",
+   "prompt_tokens": 25,
+   "generation_tokens": 25,
+   "finish_reason": null
+  },
+  {
+   "text": " Japan",
+   "prompt_tokens": 25,
+   "generation_tokens": 26,
+   "finish_reason": null
+  },
+  {
+   "text": "?\"",
+   "prompt_tokens": 25,
+   "generation_tokens": 27,
+   "finish_reason": null
+  },
+  {
+   "text": " and",
+   "prompt_tokens": 25,
+   "generation_tokens": 28,
+   "finish_reason": null
+  },
+  {
+   "text": " requests",
+   "prompt_tokens": 25,
+   "generation_tokens": 29,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 30,
+   "finish_reason": null
+  },
+  {
+   "text": " answer",
+   "prompt_tokens": 25,
+   "generation_tokens": 31,
+   "finish_reason": null
+  },
+  {
+   "text": " \"",
+   "prompt_tokens": 25,
+   "generation_tokens": 32,
+   "finish_reason": null
+  },
+  {
+   "text": "in",
+   "prompt_tokens": 25,
+   "generation_tokens": 33,
+   "finish_reason": null
+  },
+  {
+   "text": " one",
+   "prompt_tokens": 25,
+   "generation_tokens": 34,
+   "finish_reason": null
+  },
+  {
+   "text": " word",
+   "prompt_tokens": 25,
+   "generation_tokens": 35,
+   "finish_reason": null
+  },
+  {
+   "text": "\"",
+   "prompt_tokens": 25,
+   "generation_tokens": 36,
+   "finish_reason": null
+  },
+  {
+   "text": " (",
+   "prompt_tokens": 25,
+   "generation_tokens": 37,
+   "finish_reason": null
+  },
+  {
+   "text": "一",
+   "prompt_tokens": 25,
+   "generation_tokens": 38,
+   "finish_reason": null
+  },
+  {
+   "text": "言",
+   "prompt_tokens": 25,
+   "generation_tokens": 39,
+   "finish_reason": null
+  },
+  {
+   "text": "で",
+   "prompt_tokens": 25,
+   "generation_tokens": 40,
+   "finish_reason": null
+  },
+  {
+   "text": " -",
+   "prompt_tokens": 25,
+   "generation_tokens": 41,
+   "finish_reason": null
+  },
+  {
+   "text": " hit",
+   "prompt_tokens": 25,
+   "generation_tokens": 42,
+   "finish_reason": null
+  },
+  {
+   "text": "ok",
+   "prompt_tokens": 25,
+   "generation_tokens": 43,
+   "finish_reason": null
+  },
+  {
+   "text": "oto",
+   "prompt_tokens": 25,
+   "generation_tokens": 44,
+   "finish_reason": null
+  },
+  {
+   "text": " de",
+   "prompt_tokens": 25,
+   "generation_tokens": 45,
+   "finish_reason": null
+  },
+  {
+   "text": ").",
+   "prompt_tokens": 25,
+   "generation_tokens": 46,
+   "finish_reason": null
+  },
+  {
+   "text": "\n",
+   "prompt_tokens": 25,
+   "generation_tokens": 47,
+   "finish_reason": null
+  },
+  {
+   "text": "2",
+   "prompt_tokens": 25,
+   "generation_tokens": 48,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 49,
+   "finish_reason": null
+  },
+  {
+   "text": "  ",
+   "prompt_tokens": 25,
+   "generation_tokens": 50,
+   "finish_reason": null
+  },
+  {
+   "text": "**",
+   "prompt_tokens": 25,
+   "generation_tokens": 51,
+   "finish_reason": null
+  },
+  {
+   "text": "Identify",
+   "prompt_tokens": 25,
+   "generation_tokens": 52,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 53,
+   "finish_reason": null
+  },
+  {
+   "text": " Subject",
+   "prompt_tokens": 25,
+   "generation_tokens": 54,
+   "finish_reason": null
+  },
+  {
+   "text": ":**",
+   "prompt_tokens": 25,
+   "generation_tokens": 55,
+   "finish_reason": null
+  },
+  {
+   "text": " The",
+   "prompt_tokens": 25,
+   "generation_tokens": 56,
+   "finish_reason": null
+  },
+  {
+   "text": " capital",
+   "prompt_tokens": 25,
+   "generation_tokens": 57,
+   "finish_reason": null
+  },
+  {
+   "text": " of",
+   "prompt_tokens": 25,
+   "generation_tokens": 58,
+   "finish_reason": null
+  },
+  {
+   "text": " Japan",
+   "prompt_tokens": 25,
+   "generation_tokens": 59,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 60,
+   "finish_reason": null
+  },
+  {
+   "text": "\n",
+   "prompt_tokens": 25,
+   "generation_tokens": 61,
+   "finish_reason": null
+  },
+  {
+   "text": "3",
+   "prompt_tokens": 25,
+   "generation_tokens": 62,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 63,
+   "finish_reason": null
+  },
+  {
+   "text": "  ",
+   "prompt_tokens": 25,
+   "generation_tokens": 64,
+   "finish_reason": null
+  },
+  {
+   "text": "**",
+   "prompt_tokens": 25,
+   "generation_tokens": 65,
+   "finish_reason": null
+  },
+  {
+   "text": "Determine",
+   "prompt_tokens": 25,
+   "generation_tokens": 66,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 67,
+   "finish_reason": null
+  },
+  {
+   "text": " Answer",
+   "prompt_tokens": 25,
+   "generation_tokens": 68,
+   "finish_reason": null
+  },
+  {
+   "text": ":**",
+   "prompt_tokens": 25,
+   "generation_tokens": 69,
+   "finish_reason": null
+  },
+  {
+   "text": " The",
+   "prompt_tokens": 25,
+   "generation_tokens": 70,
+   "finish_reason": null
+  },
+  {
+   "text": " capital",
+   "prompt_tokens": 25,
+   "generation_tokens": 71,
+   "finish_reason": null
+  },
+  {
+   "text": " of",
+   "prompt_tokens": 25,
+   "generation_tokens": 72,
+   "finish_reason": null
+  },
+  {
+   "text": " Japan",
+   "prompt_tokens": 25,
+   "generation_tokens": 73,
+   "finish_reason": null
+  },
+  {
+   "text": " is",
+   "prompt_tokens": 25,
+   "generation_tokens": 74,
+   "finish_reason": null
+  },
+  {
+   "text": " Tokyo",
+   "prompt_tokens": 25,
+   "generation_tokens": 75,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 76,
+   "finish_reason": null
+  },
+  {
+   "text": "\n",
+   "prompt_tokens": 25,
+   "generation_tokens": 77,
+   "finish_reason": null
+  },
+  {
+   "text": "4",
+   "prompt_tokens": 25,
+   "generation_tokens": 78,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 79,
+   "finish_reason": null
+  },
+  {
+   "text": "  ",
+   "prompt_tokens": 25,
+   "generation_tokens": 80,
+   "finish_reason": null
+  },
+  {
+   "text": "**",
+   "prompt_tokens": 25,
+   "generation_tokens": 81,
+   "finish_reason": null
+  },
+  {
+   "text": "Form",
+   "prompt_tokens": 25,
+   "generation_tokens": 82,
+   "finish_reason": null
+  },
+  {
+   "text": "ulate",
+   "prompt_tokens": 25,
+   "generation_tokens": 83,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 84,
+   "finish_reason": null
+  },
+  {
+   "text": " Response",
+   "prompt_tokens": 25,
+   "generation_tokens": 85,
+   "finish_reason": null
+  },
+  {
+   "text": ":**",
+   "prompt_tokens": 25,
+   "generation_tokens": 86,
+   "finish_reason": null
+  },
+  {
+   "text": " Provide",
+   "prompt_tokens": 25,
+   "generation_tokens": 87,
+   "finish_reason": null
+  },
+  {
+   "text": " the",
+   "prompt_tokens": 25,
+   "generation_tokens": 88,
+   "finish_reason": null
+  },
+  {
+   "text": " answer",
+   "prompt_tokens": 25,
+   "generation_tokens": 89,
+   "finish_reason": null
+  },
+  {
+   "text": " clearly",
+   "prompt_tokens": 25,
+   "generation_tokens": 90,
+   "finish_reason": null
+  },
+  {
+   "text": " and",
+   "prompt_tokens": 25,
+   "generation_tokens": 91,
+   "finish_reason": null
+  },
+  {
+   "text": " concisely",
+   "prompt_tokens": 25,
+   "generation_tokens": 92,
+   "finish_reason": null
+  },
+  {
+   "text": ",",
+   "prompt_tokens": 25,
+   "generation_tokens": 93,
+   "finish_reason": null
+  },
+  {
+   "text": " as",
+   "prompt_tokens": 25,
+   "generation_tokens": 94,
+   "finish_reason": null
+  },
+  {
+   "text": " requested",
+   "prompt_tokens": 25,
+   "generation_tokens": 95,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 96,
+   "finish_reason": null
+  },
+  {
+   "text": "\n",
+   "prompt_tokens": 25,
+   "generation_tokens": 97,
+   "finish_reason": null
+  },
+  {
+   "text": "5",
+   "prompt_tokens": 25,
+   "generation_tokens": 98,
+   "finish_reason": null
+  },
+  {
+   "text": ".",
+   "prompt_tokens": 25,
+   "generation_tokens": 99,
+   "finish_reason": null
+  },
+  {
+   "text": "  ",
+   "prompt_tokens": 25,
+   "generation_tokens": 100,
+   "finish_reason": null
+  },
+  {
+   "text": "**",
+   "prompt_tokens": 25,
+   "generation_tokens": 101,
+   "finish_reason": null
+  },
+  {
+   "text": "Final",
+   "prompt_tokens": 25,
+   "generation_tokens": 102,
+   "finish_reason": null
+  },
+  {
+   "text": " Output",
+   "prompt_tokens": 25,
+   "generation_tokens": 103,
+   "finish_reason": null
+  },
+  {
+   "text": " Generation",
+   "prompt_tokens": 25,
+   "generation_tokens": 104,
+   "finish_reason": null
+  },
+  {
+   "text": " (",
+   "prompt_tokens": 25,
+   "generation_tokens": 105,
+   "finish_reason": null
+  },
+  {
+   "text": "Japanese",
+   "prompt_tokens": 25,
+   "generation_tokens": 106,
+   "finish_reason": null
+  },
+  {
+   "text": "):",
+   "prompt_tokens": 25,
+   "generation_tokens": 107,
+   "finish_reason": null
+  },
+  {
+   "text": "**",
+   "prompt_tokens": 25,
+   "generation_tokens": 108,
+   "finish_reason": null
+  },
+  {
+   "text": " 東京",
+   "prompt_tokens": 25,
+   "generation_tokens": 109,
+   "finish_reason": null
+  },
+  {
+   "text": " (",
+   "prompt_tokens": 25,
+   "generation_tokens": 110,
+   "finish_reason": null
+  },
+  {
+   "text": "T",
+   "prompt_tokens": 25,
+   "generation_tokens": 111,
+   "finish_reason": null
+  },
+  {
+   "text": "ō",
+   "prompt_tokens": 25,
+   "generation_tokens": 112,
+   "finish_reason": null
+  },
+  {
+   "text": "ky",
+   "prompt_tokens": 25,
+   "generation_tokens": 113,
+   "finish_reason": null
+  },
+  {
+   "text": "ō",
+   "prompt_tokens": 25,
+   "generation_tokens": 114,
+   "finish_reason": null
+  },
+  {
+   "text": ").",
+   "prompt_tokens": 25,
+   "generation_tokens": 115,
+   "finish_reason": null
+  },
+  {
+   "text": "<channel|>",
+   "prompt_tokens": 25,
+   "generation_tokens": 116,
+   "finish_reason": null
+  },
+  {
+   "text": "東京",
+   "prompt_tokens": 25,
+   "generation_tokens": 117,
+   "finish_reason": null
+  },
+  {
+   "text": "",
+   "prompt_tokens": 25,
+   "generation_tokens": 118,
+   "finish_reason": "stop"
+  }
+ ]
+}

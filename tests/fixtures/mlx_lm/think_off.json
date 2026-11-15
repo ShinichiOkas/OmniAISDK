@@ -1,0 +1,29 @@
+{
+ "messages": [
+  {
+   "role": "user",
+   "content": "日本の首都はどこ？一言で。"
+  }
+ ],
+ "think": false,
+ "max_tokens": 200,
+ "prompt": "<bos><|turn>user\n日本の首都はどこ？一言で。<turn|>\n<|turn>model\n",
+ "think_markers": [
+  "<|channel>thought",
+  "<channel|>"
+ ],
+ "chunks": [
+  {
+   "text": "東京",
+   "prompt_tokens": 18,
+   "generation_tokens": 1,
+   "finish_reason": null
+  },
+  {
+   "text": "",
+   "prompt_tokens": 18,
+   "generation_tokens": 2,
+   "finish_reason": "stop"
+  }
+ ]
+}

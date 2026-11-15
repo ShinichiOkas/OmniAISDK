@@ -1,0 +1,65 @@
+{
+ "messages": [
+  {
+   "role": "user",
+   "content": "1から30まで数えて。"
+  }
+ ],
+ "think": false,
+ "max_tokens": 8,
+ "prompt": "<bos><|turn>user\n1から30まで数えて。<turn|>\n<|turn>model\n",
+ "think_markers": [
+  "<|channel>thought",
+  "<channel|>"
+ ],
+ "chunks": [
+  {
+   "text": "はい",
+   "prompt_tokens": 17,
+   "generation_tokens": 1,
+   "finish_reason": null
+  },
+  {
+   "text": "、",
+   "prompt_tokens": 17,
+   "generation_tokens": 2,
+   "finish_reason": null
+  },
+  {
+   "text": "承",
+   "prompt_tokens": 17,
+   "generation_tokens": 3,
+   "finish_reason": null
+  },
+  {
+   "text": "知",
+   "prompt_tokens": 17,
+   "generation_tokens": 4,
+   "finish_reason": null
+  },
+  {
+   "text": "いたしました",
+   "prompt_tokens": 17,
+   "generation_tokens": 5,
+   "finish_reason": null
+  },
+  {
+   "text": "。",
+   "prompt_tokens": 17,
+   "generation_tokens": 6,
+   "finish_reason": null
+  },
+  {
+   "text": "1",
+   "prompt_tokens": 17,
+   "generation_tokens": 7,
+   "finish_reason": null
+  },
+  {
+   "text": "から",
+   "prompt_tokens": 17,
+   "generation_tokens": 8,
+   "finish_reason": "length"
+  }
+ ]
+}

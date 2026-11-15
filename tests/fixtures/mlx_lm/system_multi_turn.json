@@ -1,0 +1,41 @@
+{
+ "messages": [
+  {
+   "role": "system",
+   "content": "あなたは簡潔に答える。"
+  },
+  {
+   "role": "user",
+   "content": "1+1は？"
+  },
+  {
+   "role": "assistant",
+   "content": "2"
+  },
+  {
+   "role": "user",
+   "content": "それに3を足すと？"
+  }
+ ],
+ "think": false,
+ "max_tokens": 200,
+ "prompt": "<bos><|turn>system\nあなたは簡潔に答える。<turn|>\n<|turn>user\n1+1は？<turn|>\n<|turn>model\n2<turn|>\n<|turn>user\nそれに3を足すと？<turn|>\n<|turn>model\n",
+ "think_markers": [
+  "<|channel>thought",
+  "<channel|>"
+ ],
+ "chunks": [
+  {
+   "text": "5",
+   "prompt_tokens": 43,
+   "generation_tokens": 1,
+   "finish_reason": null
+  },
+  {
+   "text": "",
+   "prompt_tokens": 43,
+   "generation_tokens": 2,
+   "finish_reason": "stop"
+  }
+ ]
+}

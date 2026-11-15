@@ -44,8 +44,9 @@ __all__ = [
 ]
 
 ChatProvider = Literal[
-    "gemini", "ollama", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible", "anthropic"
-]
+    "gemini", "ollama", "ollama-cloud", "xai", "agnes", "openrouter", "openai-compatible", "anthropic",
+    "mlx-lm",
+]  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,11 @@ CHAT_PROVIDERS: dict[str, ChatProviderInfo] = {
     ),
     "anthropic": ChatProviderInfo(
         "Anthropic（Claude）", ("ANTHROPIC_API_KEY",), True, model_example="claude-sonnet-5-5"
+    ),
+    # プロセス内で動く（extras [mlx]、Apple Silicon の macOS 専用）。
+    # モデルは HF のリポジトリ名か変換済みモデルのディレクトリパス
+    "mlx-lm": ChatProviderInfo(
+        "mlx-lm（ローカル・Apple Silicon の Mac 専用）", model_example="mlx-community/gemma-4-e2b-it-4bit"
     ),
 }
 
