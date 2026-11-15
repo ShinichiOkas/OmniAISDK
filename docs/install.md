@@ -18,6 +18,7 @@ omni-ai                          # メニュー方式のセットアップ（以
 | `docs` | pypdf・markitdown | 文書解析（PDF・Office・RTF） | |
 | `mcp` | mcp SDK 2.x | MCP サーバーのツール | |
 | `audio` | edge-tts・faster-whisper | 音声合成・音声認識 | 合成の文章は Microsoft に送られる。認識のモデルは medium で約 1.5GB |
+| `mlx` | mlx-lm | Chat をプロセス内で（ローカル LLM） | **Apple Silicon の macOS 専用**（他の OS では何も入らない）。モデルは別に用意する（例: gemma-4-e2b-it-4bit で約 3.3GB） |
 
 ```bash
 pip install -e ".[local,search,docs,mcp,audio]"
@@ -77,7 +78,7 @@ whisper_model = "medium"
 provider = "docker"
 ```
 
-Chat のプロバイダーは `gemini` / `ollama` / `ollama-cloud` / `xai` / `agnes` / `openrouter` / `openai-compatible` / `anthropic` から選べます。Gemini 以外は既定のモデルが無いので、`models` に書いてください。
+Chat のプロバイダーは `gemini` / `ollama` / `ollama-cloud` / `xai` / `agnes` / `openrouter` / `openai-compatible` / `anthropic` / `mlx-lm` から選べます（`mlx-lm` は Apple Silicon の Mac だけ）。Gemini 以外は既定のモデルが無いので、`models` に書いてください。
 
 ```toml
 # config.toml（Chat をクラウドと手元のサーバーで組む例）
@@ -102,6 +103,16 @@ api_key = "..."
 ```
 
 Anthropic のモデルは `models = { anthropic = "claude-sonnet-5-5" }` のように書きます。`max_tokens`（API の必須項目）を渡さない呼び出しには 16000 を送ります（`AnthropicChatAdapter(default_max_tokens=...)` か呼び出しごとの `max_tokens=` で変えられます）。
+
+mlx-lm（extras `mlx`）は、サーバーを立てずに呼び出し側のプロセスでモデルを読み込みます。モデルは Hugging Face のリポジトリ名か、変換済みモデルのディレクトリを書きます（`~` も使えます）。
+
+```toml
+[client.chat]
+providers = ["mlx-lm"]
+models = { mlx-lm = "~/models/gemma-4-e2b-it-4bit" }   # または "mlx-community/gemma-4-e2b-it-4bit"
+```
+
+思考モードはモデルの既定に従います（Gemma 4 は既定で ON）。切るときは呼び出しごとに `provider_options` で `{"mlx-lm": {"think": False}}` を渡します。モデルが GPU に割り当てられるメモリ（16GB の Mac で約 12GB）より大きいと、生成の時点でメモリ不足のエラーになります。ツール呼び出し・構造化出力・画像入力はまだ使えません。
 
 API キーや接続先は、次の順で探します: 引数 → `OMNI_<PROVIDER>_<KEY>`（名前のハイフンは `_`。例: `OMNI_OLLAMA_CLOUD_API_KEY`）→ 各社の環境変数（`GEMINI_API_KEY` など）→ `secrets.toml` → `config.toml`。
 

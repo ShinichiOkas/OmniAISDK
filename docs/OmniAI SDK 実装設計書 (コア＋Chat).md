@@ -1061,3 +1061,29 @@ Ollama:
 - `ToolDefinition.strict`: 送らない（Gemini と同じ。strict は `additionalProperties: false` を要求する）
 - Haiku 5.5 の単価は 100K トークンで段階が変わるので、単価表に入れる場合は利用者が決める（J-08: 不明は None）
 - `STATIC_CONTEXT_WINDOWS` の Claude 4 系（200K）は古い可能性がある（今回は触らない）
+
+## 27. Chat プロバイダーの追加（mlx-lm・Apple Silicon の Mac 専用）（2026-11-15）
+
+師匠の指示: 「ローカルプロバイダーに、mlx-mlを追加して欲しい。もちろんMacで動作しているとき限定」（mlx-ml＝mlx-lm）。`providers/mlx_lm/`（`MLXLMChatAdapter`、`provider_name = "mlx-lm"`）。合意ドキュメント `.pair-agent/agreements/mlx-lm-provider.md`。
+
+| 項目 | 内容 |
+| :--- | :--- |
+| 呼び出し方 | **プロセス内**。mlx-lm の Python API（`load` / `stream_generate`）を直接呼ぶ。サーバー（`mlx_lm.server`）は使わない |
+| 依存 | extras `[mlx]` = `mlx-lm>=0.31`（環境マーカー `sys_platform == 'darwin' and platform_machine == 'arm64'`）。他の OS では何も入らない |
+| 機械の制限 | Apple Silicon の macOS 以外では、アダプターを作った時点で `UnsupportedFeatureError`（builder 経由でも同じ）。CLI のメニューには Apple Silicon の Mac でだけ出す（末尾に追加） |
+| 構造 | HTTP 前提の `BaseChatAdapter` は継がず、`ChatCapability` を直接実装する。実行部（`Backend`: 読み込み・chat template・生成・解放）を差し替えられる形にし、試験は記録した実応答を再生する偽の実行部で回す |
+| モデル | 既定のモデルは持たない（J-02）。HF のリポジトリ名かディレクトリパス（`~` は展開）。初回利用時に 1 度だけ読み込み、同時に持つのは 1 本（別のモデルを指定すると前のものを解放して読み替える） |
+| 並行 | 読み込みと生成は 1 本のロックで直列にする。async は別スレッドで回し、`astream` を途中で抜けるとトークンの区切りで生成を止める |
+| 思考 | **モデルの既定に従う**（J-M13）。指定が無ければ `enable_thinking` を渡さない（mlx-lm が `has_thinking` を入れる。Gemma 4 は ON）。`provider_options={"mlx-lm": {"think": bool}}` で切り替え。思考は tokenizer の `think_start` / `think_end`（Gemma 4 は `<\|channel>thought` / `<channel\|>`）で本文から分け、`reasoning` / `reasoning_delta` に入れる。区切りがトークンの途中で切れても扱う。プロンプトが開始の区切りで終わる型（本文が思考の途中から始まる）にも対応 |
+| サンプリング | `temperature` と `{"mlx-lm": {"top_p", "top_k", "min_p"}}` を `make_sampler` に渡す。何も指定が無ければ mlx-lm の既定（貪欲）。知らないキーは黙って捨てず `InvalidRequestError` |
+| max_tokens | 指定が無ければ 8192（`default_max_tokens=` で変えられる）。mlx-lm の既定 256 は思考で使い切るため |
+| usage・終了理由 | 最後の区切りの `prompt_tokens` / `generation_tokens`。`finish_reason` は `length` か `stop`。費用は 0.0 |
+| timeout | トークンの区切りごとに締め切りを確かめ、超えたら `ProviderTimeoutError`（出力のあとなら `StreamInterruptedError`） |
+| エラー | ローカルのモデルが無い・HF のリポジトリが無い→`NotFoundError`。Metal のメモリ不足（`Insufficient Memory` / `OutOfMemory`）→意味の分かる `OmniError`（再試行しない）。chat template の失敗→`InvalidRequestError`。出力のあとの失敗は `StreamInterruptedError` |
+
+**実物での確認（2026-11-15・Mac M1 / 16GB・mlx-lm 0.32.2 / mlx 0.32.4）**:
+- `mlx-community/gemma-4-e2b-it-4bit`: 読み込み 3.0 秒、約 33 トークン/秒、ピークメモリ 2.7GB。生成・ストリーム・思考の切り分け・`length` を確認（`tests/live/test_live_mlx_lm.py`）。応答の記録は `tests/fixtures/mlx_lm/`
+- `gemma-4-26B-A4B-it` の MLX mxfp4（13GB）: 読み込みはできたが、生成で Metal のメモリ不足（必要 12,790MB に対し GPU の推奨上限 12,124MB）。この Mac では実用にならない
+
+**未対応（次の段で必ず実装する。票 `.pair-agent/requests/2026-11-15-1610-mlx-lm-tools-schema-vision.md`）**: ツール呼び出し・構造化出力・画像入力。いまは `UnsupportedFeatureError`。tokenizer に `tool_call_start` / `tool_call_end` / `tool_parser` があり、画像は mlx-vlm 側の読み込みに切り替える想定
+
