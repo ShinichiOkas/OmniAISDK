@@ -68,7 +68,7 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
         # 保存済みベクトルと bit 互換の正規化を使うか（既定: True）。False なら pure-Python の L2 正規化
         self.bit_compat_normalize = bit_compat_normalize
         # 既定は OS 標準のキャッシュ（platformdirs）。他のアプリとモデルを共有するなら、そのディレクトリを渡す
-        self._lazy = LazyModel(
+        self._lazy: LazyModel = LazyModel(
             model_name=model,
             factory=model_factory or _fastembed_factory,
             cache_dir=Path(cache_dir) if cache_dir else default_cache_dir(),
@@ -107,7 +107,8 @@ class FastEmbedEmbeddingAdapter(EmbeddingCapability):
 
     def _normalize_array(self, arr: np.ndarray) -> np.ndarray:
         if self.bit_compat_normalize:
-            return normalize_bit_compat(arr)
+            normalized: np.ndarray = normalize_bit_compat(arr)
+            return normalized
         # pure-Python 流の L2（丸めが異なるので保存済みベクトルと bit 一致しない）
         import numpy as np
 

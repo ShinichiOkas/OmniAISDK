@@ -88,5 +88,5 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 # extras [local] の任意依存。CI（dev のみ）では入っていない
-module = ["fastembed", "fastembed.*", "ddgs", "ddgs.*", "markitdown", "markitdown.*", "pypdf", "pypdf.*", "mcp", "mcp.*", "edge_tts", "edge_tts.*", "faster_whisper", "faster_whisper.*", "mlx", "mlx.*", "mlx_lm", "mlx_lm.*"]
+module = ["fastembed", "fastembed.*", "ddgs", "ddgs.*", "markitdown", "markitdown.*", "pypdf", "pypdf.*", "mcp", "mcp.*", "edge_tts", "edge_tts.*", "faster_whisper", "faster_whisper.*", "mlx", "mlx.*", "mlx_lm", "mlx_lm.*", "readability", "readability.*", "trafilatura", "trafilatura.*"]
 ignore_missing_imports = true

@@ -51,7 +51,9 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
         if not query or not query.strip():
             raise InvalidRequestError("query is empty", provider=self.provider_name)
         if search_depth != "basic":
-            logger.debug("%s search: search_depth=%s is not supported; ignored", self.provider_name, search_depth)
+            logger.debug(
+                "%s search: search_depth=%s is not supported; ignored", self.provider_name, search_depth
+            )
         limit = max(1, min(int(max_results), MAX_RESULTS_LIMIT))
         body: dict[str, Any] = {"query": query.strip(), "max_results": limit}
         if self.backend:
@@ -60,7 +62,13 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
         return body, limit
 
     def _parse(
-        self, data: Any, body: dict[str, Any], limit: int, started: float, attempts: int, request_id: str | None
+        self,
+        data: Any,
+        body: dict[str, Any],
+        limit: int,
+        started: float,
+        attempts: int,
+        request_id: str | None,
     ) -> SearchResponse:
         rows = data.get("results") if isinstance(data, dict) else None
         if not isinstance(rows, list):
@@ -110,7 +118,12 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
         started = time.monotonic()
         result = self._sync.request("POST", "/search", json=body)
         return self._parse(
-            self._json(result), body, limit, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result),
+            body,
+            limit,
+            started,
+            result.attempts,
+            result.response.headers.get("x-request-id"),
         )
 
     async def asearch(
@@ -125,5 +138,10 @@ class OpenAICompatibleSearchAdapter(OpenAICompatibleServiceBase, SearchCapabilit
         started = time.monotonic()
         result = await self._async.request("POST", "/search", json=body)
         return self._parse(
-            self._json(result), body, limit, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result),
+            body,
+            limit,
+            started,
+            result.attempts,
+            result.response.headers.get("x-request-id"),
         )

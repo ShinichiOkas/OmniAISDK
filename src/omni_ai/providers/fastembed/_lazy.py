@@ -56,7 +56,8 @@ def _open_reusing_tokenizer(donor: tuple[Any, dict[str, int], str], **kw: Any) -
 
     tok, special, donor_dir = donor
     te = TextEmbedding(lazy_load=True, **kw)
-    inner = te.model
+    # fastembed の公開型（TextEmbeddingBase）には無い内部属性を触るので Any で扱う
+    inner: Any = te.model
     cls = type(inner)
     if cls._load_onnx_model is not OnnxTextModel._load_onnx_model or (
         cls.load_onnx_model is not OnnxTextEmbedding.load_onnx_model

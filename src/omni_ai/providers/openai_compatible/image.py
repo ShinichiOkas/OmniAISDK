@@ -76,7 +76,10 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
     def _parse(
         self, data: Any, model: str | None, started: float, attempts: int, request_id: str | None
     ) -> tuple[ImageResponse, list[tuple[int, str]]]:
-        """応答を ImageResponse にする。``url`` で来た分は ``data`` が空で、(images の添字, URL) を順に返す。"""
+        """応答を ImageResponse にする。
+
+        ``url`` で来た分は ``data`` が空で、(images の添字, URL) を順に返す。
+        """
         items = data.get("data") if isinstance(data, dict) else None
         if not isinstance(items, list) or not items:
             raise OmniError(
@@ -102,7 +105,10 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
                     ) from exc
                 if not raw:
                     raise OmniError(
-                        "image b64_json decoded to 0 bytes", provider=self.provider_name, model=model, raw_error=data
+                        "image b64_json decoded to 0 bytes",
+                        provider=self.provider_name,
+                        model=model,
+                        raw_error=data,
                     )
                 images.append(GeneratedImage(data=raw, mime_type=_sniff_mime(raw), revised_prompt=revised))
             elif item.get("url"):
@@ -154,7 +160,11 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
         started = time.monotonic()
         result = self._sync.request("POST", "/images/generations", json=body)
         res, pending = self._parse(
-            self._json(result), resolved, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result),
+            resolved,
+            started,
+            result.attempts,
+            result.response.headers.get("x-request-id"),
         )
         fetched = [self._fetch(u) for _, u in pending]
         res.meta.latency_ms = (time.monotonic() - started) * 1000.0
@@ -173,7 +183,11 @@ class OpenAICompatibleImageAdapter(OpenAICompatibleServiceBase, ImageCapability)
         started = time.monotonic()
         result = await self._async.request("POST", "/images/generations", json=body)
         res, pending = self._parse(
-            self._json(result), resolved, started, result.attempts, result.response.headers.get("x-request-id")
+            self._json(result),
+            resolved,
+            started,
+            result.attempts,
+            result.response.headers.get("x-request-id"),
         )
         fetched = [await self._afetch(u) for _, u in pending]
         res.meta.latency_ms = (time.monotonic() - started) * 1000.0

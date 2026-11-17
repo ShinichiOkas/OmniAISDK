@@ -124,7 +124,9 @@ def test_mixed_b64_and_url_keep_order() -> None:
 @respx.mock
 def test_url_fetch_failure_is_an_error_not_empty_image() -> None:
     respx.post(URL).mock(return_value=httpx.Response(200, json={"data": [{"url": "http://cdn.example/x"}]}))
-    respx.get("http://cdn.example/x").mock(return_value=httpx.Response(404, json={"error": {"message": "gone"}}))
+    respx.get("http://cdn.example/x").mock(
+        return_value=httpx.Response(404, json={"error": {"message": "gone"}})
+    )
     with pytest.raises(OmniError):
         make().generate_image("x")
 
@@ -272,7 +274,9 @@ def test_200_with_non_json_body_is_an_omni_error(kind: str) -> None:
     from omni_ai.providers.openai_compatible.search import OpenAICompatibleSearchAdapter
 
     respx.post(URL).mock(return_value=httpx.Response(200, content=b"<html>wrong base url</html>"))
-    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, content=b"<html>wrong base url</html>"))
+    respx.post(f"{BASE}/search").mock(
+        return_value=httpx.Response(200, content=b"<html>wrong base url</html>")
+    )
     with pytest.raises(OmniError):
         if kind == "image":
             make().generate_image("x")

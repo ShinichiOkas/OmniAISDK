@@ -64,13 +64,17 @@ async def test_aspeak_voice_override_and_list(fake_edge) -> None:
     assert await a.alist_voices("ja") == ["ja-JP-NanamiNeural"]
 
 
-def test_speak_errors(fake_edge) -> None:
+def test_speak_errors(fake_edge, monkeypatch: pytest.MonkeyPatch) -> None:
+    import omni_ai.providers.edge_tts as ett
+
     a = EdgeTTSAudioAdapter()
     with pytest.raises(InvalidRequestError, match="voice"):
         a.speak("x", voice="xx-XX-NoSuchNeural")
     with pytest.raises(InvalidRequestError):
         a.speak("  ")
-    with pytest.raises(UnsupportedFeatureError):
+    # WAV は ffmpeg 頼み。ランナーに ffmpeg があるかどうかで結果が変わらないよう、無い想定にする
+    monkeypatch.setattr(ett, "_ffmpeg", lambda: None)
+    with pytest.raises(UnsupportedFeatureError, match="ffmpeg"):
         a.speak("x", response_format="wav")
     with pytest.raises(InvalidRequestError, match="rate"):
         EdgeTTSAudioAdapter(rate=200)

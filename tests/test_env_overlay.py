@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from omni_ai.builder import build_client
 from omni_ai.env_overlay import apply_env_overlay
+from omni_ai.providers.openai_compatible import OpenAICompatibleChatAdapter
+from omni_ai.router import InstrumentedChat
 from omni_ai.settings import ChatSection, ClientSection, OmniConfig
 
 
@@ -79,13 +81,10 @@ def test_build_client_applies_env(monkeypatch):
     client = build_client(cfg, env_summary=summary)
     assert client.chat is not None
     assert summary and not summary[0].is_empty()
-    # 中身まで（InstrumentedChat をたどる）
+    # 中身まで（InstrumentedChat の包みを外す）
     inner = client.chat
-    for _ in range(5):
-        if hasattr(inner, "_inner"):
-            inner = inner._inner  # type: ignore[attr-defined]
-        else:
-            break
-    # OpenAICompatibleChatAdapter には base_url が通っている
-    bu = getattr(inner, "base_url", None) or getattr(inner, "_base_url", None)
-    assert bu == "http://127.0.0.1:8082" or True  # 名前は実装詳細。例外無しで作れればまず OK
+    while isinstance(inner, InstrumentedChat):
+        inner = inner.inner
+    # OpenAICompatibleChatAdapter に base_url が通っている（末尾の /v1 は normalize_base_url が足す）
+    assert isinstance(inner, OpenAICompatibleChatAdapter)
+    assert inner.base_url == "http://127.0.0.1:8082/v1"

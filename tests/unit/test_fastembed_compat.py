@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from omni_ai import InvalidRequestError
 from omni_ai.providers.fastembed import FastEmbedEmbeddingAdapter
 from omni_ai.providers.fastembed._numpy_compat import normalize_bit_compat
 
@@ -79,7 +80,7 @@ def test_embed_array_no_normalize_returns_raw_float32() -> None:
 
 def test_embed_array_empty_input_returns_empty_array() -> None:
     ad = FastEmbedEmbeddingAdapter(model="fake", model_factory=_factory_for([]))
-    with pytest.raises(Exception):  # 空文字は prepare_texts で弾かれる
+    with pytest.raises(InvalidRequestError, match="empty"):  # 空文字は prepare_texts で弾かれる
         ad.embed_array([""])
 
 

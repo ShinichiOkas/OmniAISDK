@@ -22,7 +22,9 @@ __all__ = ["OpenAICompatibleServiceBase", "provider_namespace_options"]
 logger = logging.getLogger("omni_ai")
 
 
-def provider_namespace_options(provider: str, provider_options: Mapping[str, Any], *, what: str) -> dict[str, Any]:
+def provider_namespace_options(
+    provider: str, provider_options: Mapping[str, Any], *, what: str
+) -> dict[str, Any]:
     """``provider_options[<provider>]`` の dict だけを採る。他の名前空間は捨てるが、黙って捨てない。"""
     ours: dict[str, Any] = {}
     for key, value in provider_options.items():
@@ -81,7 +83,8 @@ class OpenAICompatibleServiceBase:
             return result.json()
         except ValueError as exc:
             raise OmniError(
-                f"{self.provider_name} {self.service} returned a non-JSON body (check base_url={self.base_url})",
+                f"{self.provider_name} {self.service} returned a non-JSON body "
+                f"(check base_url={self.base_url})",
                 provider=self.provider_name,
                 raw_error=exc,
             ) from exc

@@ -17,7 +17,8 @@ _HTML = """<!doctype html>
   <nav>skip me</nav>
   <article>
     <h1>Hello</h1>
-    <p>This is a long enough body paragraph to pass readability's heuristics so that the article is extracted correctly for us.</p>
+    <p>This is a long enough body paragraph to pass readability's heuristics
+    so that the article is extracted correctly for us.</p>
     <p>Another decent paragraph that keeps readability happy about the article's text density.</p>
     <img src="/img/content.jpg" alt="a nice photograph of the subject">
     <img src="/img/logo.svg" alt="logo">

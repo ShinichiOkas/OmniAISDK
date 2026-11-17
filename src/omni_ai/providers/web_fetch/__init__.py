@@ -3,7 +3,8 @@
 - 本文抽出: readability-lxml ＋ markdownify（既定）または trafilatura（任意）
 - 画像: ``<img>`` の src/srcset と「原寸画像を指す ``<a href>``」を拾い、UI 装飾を点数で下げる
 - リダイレクトの各段で ``url_filter`` を呼ぶ（SSRF 対策の差し込み口）
-- 文書系（PDF・docx 等）は本文抽出せず、生バイトを ``raw_bytes`` に残し、呼び出し側で DocumentParser に回す想定
+- 文書系（PDF・docx 等）は本文抽出せず、生バイトを ``raw_bytes`` に残し、
+  呼び出し側で DocumentParser に回す想定
 
 **実運用の実測**（参考のみ・ここは SDK の 1 本目の実装）:
 
@@ -114,6 +115,19 @@ def _pick_from_srcset(srcset: str) -> str:
     return best_url
 
 
+def _attr(tag: Any, name: str) -> str:
+    """属性値を文字列で返す（無ければ空文字）。
+
+    bs4 は複数値の属性（``class`` など）をリストで返すので、その場合は空白でつなぐ。
+    """
+    value = tag.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return " ".join(value)
+
+
 def _extract_images(html: str, base_url: str, limit: int) -> tuple[list[FetchedImage], int]:
     """HTML から画像を抽出し、点数の高い順に並べて先頭 ``limit`` 件を返す。"""
     try:
@@ -144,16 +158,16 @@ def _extract_images(html: str, base_url: str, limit: int) -> tuple[list[FetchedI
     for img in soup.find_all("img"):
         if img.attrs is None:
             continue
-        alt = (img.get("alt") or img.get("title") or "").strip()
+        alt = (_attr(img, "alt") or _attr(img, "title")).strip()
         chosen = ""
         for attr in _IMG_SRC_ATTRS:
-            value = img.get(attr)
+            value = _attr(img, attr)
             if value:
                 chosen = value
                 break
         if not chosen:
             for attr in ("srcset", "data-srcset"):
-                value = img.get(attr)
+                value = _attr(img, attr)
                 if value:
                     chosen = _pick_from_srcset(value)
                     break
@@ -162,12 +176,12 @@ def _extract_images(html: str, base_url: str, limit: int) -> tuple[list[FetchedI
     for anchor in soup.find_all("a"):
         if anchor.attrs is None:
             continue
-        href = anchor.get("href")
+        href = _attr(anchor, "href")
         if not href:
             continue
         path = urlparse(urljoin(base_url, href)).path.lower()
         if any(path.endswith(ext) for ext in _IMAGE_EXTENSIONS):
-            label = (anchor.get("title") or anchor.get_text(" ", strip=True) or "").strip()
+            label = (_attr(anchor, "title") or anchor.get_text(" ", strip=True)).strip()
             add(href, label)
 
     total = len(images)
@@ -395,7 +409,9 @@ class HttpxWebFetchAdapter(WebFetchCapability):
         body = resp.content[: self.max_bytes]
         meta = ResponseMeta(provider=self.provider_name, model="-")
 
-        if mime in _DOCUMENT_MIMES or (mime.startswith("application/") and not mime.endswith(("json", "xml", "xhtml+xml"))):
+        if mime in _DOCUMENT_MIMES or (
+            mime.startswith("application/") and not mime.endswith(("json", "xml", "xhtml+xml"))
+        ):
             # 文書系・バイナリ系: 本文抽出せず、呼び出し側が DocumentParser に回す想定
             return FetchedPage(
                 markdown="",
