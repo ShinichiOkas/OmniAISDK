@@ -69,7 +69,12 @@ def _adapter(fake: FakeDDGS, **kw) -> DDGSSearchAdapter:
 
 
 def test_min_interval_waits_between_calls() -> None:
-    fake = FakeDDGS(text_script=[[{"title": "a", "href": "https://a", "body": ""}], [{"title": "b", "href": "https://b", "body": ""}]])
+    fake = FakeDDGS(
+        text_script=[
+            [{"title": "a", "href": "https://a", "body": ""}],
+            [{"title": "b", "href": "https://b", "body": ""}],
+        ]
+    )
     clock = [100.0]
     sleeps: list[float] = []
 

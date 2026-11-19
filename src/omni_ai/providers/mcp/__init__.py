@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import datetime as _dt
 import logging
 import os
 import sys
@@ -20,7 +19,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, TextIO
 
 import anyio
-import httpx
 
 from ...capabilities import MCPCapability
 from ...compat import PlatformCompat
@@ -39,6 +37,7 @@ logger = logging.getLogger("omni_ai")
 
 DEFAULT_CALL_TIMEOUT = 120.0  # 無応答サーバーで永久に待たない
 DEFAULT_CONNECT_TIMEOUT = 30.0
+_SSE_READ_TIMEOUT = 300.0  # streamable-http の応答ストリームは長く開いたままになる（mcp の既定と同じ）
 
 Transport = Literal["stdio", "streamable-http", "sse"]
 
@@ -118,7 +117,8 @@ class MCPClientAdapter(MCPCapability):
         env: Mapping[str, str] | None = None,
         cwd: str | Path | None = None,
         headers: Mapping[str, str] | None = None,
-        auth: httpx.Auth | None = None,
+        # mcp 2.x の HTTP 系トランスポートは httpx2 を使うので、渡すのは ``httpx2.Auth``
+        auth: Any = None,
         elicitation_handler: ElicitationHandler | None = None,
         notification_handler: NotificationHandler | None = None,
         call_timeout: float = DEFAULT_CALL_TIMEOUT,
@@ -175,7 +175,9 @@ class MCPClientAdapter(MCPCapability):
 
         async def _cb(context: Any, params: Any) -> ElicitResult:
             message = getattr(params, "message", "") or ""
-            schema = getattr(params, "requestedSchema", None) or getattr(params, "requested_schema", None) or {}
+            schema = (
+                getattr(params, "requestedSchema", None) or getattr(params, "requested_schema", None) or {}
+            )
             result = await handler(message, dict(schema))
             # ユーザーの返しは ElicitResult(**dict) で素直に組めるようにしておく
             if isinstance(result, ElicitResult):
@@ -234,15 +236,20 @@ class MCPClientAdapter(MCPCapability):
                 )
                 read_stream, write_stream = streams[0], streams[1]
             else:  # streamable-http
-                from mcp.client.streamable_http import streamablehttp_client
+                import httpx2
+                from mcp.client.streamable_http import streamable_http_client
 
-                streams = await stack.enter_async_context(
-                    streamablehttp_client(
-                        str(self.url),
+                # mcp 2.x は headers / auth / timeout を直接は受け取らない。
+                # 組み立て済みの httpx2 クライアントを渡す
+                http_client = await stack.enter_async_context(
+                    httpx2.AsyncClient(
                         headers=self.headers or None,
                         auth=self.auth,
-                        timeout=self.connect_timeout,
+                        timeout=httpx2.Timeout(self.connect_timeout, read=_SSE_READ_TIMEOUT),
                     )
+                )
+                streams = await stack.enter_async_context(
+                    streamable_http_client(str(self.url), http_client=http_client)
                 )
                 read_stream, write_stream = streams[0], streams[1]
             session_kwargs: dict[str, Any] = {}
@@ -337,17 +344,12 @@ class MCPClientAdapter(MCPCapability):
         raw_name = (
             name[len(self.tool_prefix) :] if self.tool_prefix and name.startswith(self.tool_prefix) else name
         )
-        from mcp.shared.exceptions import McpError
+        from mcp.shared.exceptions import MCPError
 
         try:
             effective = timeout if timeout is not None else self.call_timeout
-            # mcp 2.x では read_timeout_seconds は timedelta を要求する
-            result = await session.call_tool(
-                raw_name,
-                arguments,
-                read_timeout_seconds=_dt.timedelta(seconds=float(effective)),
-            )
-        except McpError as exc:
+            result = await session.call_tool(raw_name, arguments, read_timeout_seconds=float(effective))
+        except MCPError as exc:
             # 実測: 旧版は "...timed out"、新版は "Timed out while waiting for response..."
             if "timed out" in str(exc).lower():
                 raise ProviderTimeoutError(

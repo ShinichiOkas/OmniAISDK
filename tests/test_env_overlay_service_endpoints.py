@@ -65,7 +65,9 @@ def test_search_openai_compatible_overlay_sets_section_and_summary() -> None:
         "OMNI_SEARCH_BASE_URL",
     }
     listed = " | ".join(
-        summarize_env_overrides({"OMNI_SEARCH_PROVIDER": "openai-compatible", "OMNI_SEARCH_BASE_URL": SEARCH_BASE})
+        summarize_env_overrides(
+            {"OMNI_SEARCH_PROVIDER": "openai-compatible", "OMNI_SEARCH_BASE_URL": SEARCH_BASE}
+        )
     )
     assert "OMNI_SEARCH_BASE_URL" in listed
 
@@ -116,7 +118,9 @@ def test_image_overlay_sets_section() -> None:
     assert (im.provider, im.base_url) == ("openai-compatible", IMAGE_BASE)
     assert len(summary.items) == 2
     listed = " | ".join(
-        summarize_env_overrides({"OMNI_IMAGE_PROVIDER": "openai-compatible", "OMNI_IMAGE_BASE_URL": IMAGE_BASE})
+        summarize_env_overrides(
+            {"OMNI_IMAGE_PROVIDER": "openai-compatible", "OMNI_IMAGE_BASE_URL": IMAGE_BASE}
+        )
     )
     assert "OMNI_IMAGE_BASE_URL" in listed
 
@@ -133,7 +137,9 @@ def test_image_base_url_alone_raises() -> None:
 
 def test_image_unknown_provider_raises() -> None:
     with pytest.raises(ValueError, match="OMNI_IMAGE_PROVIDER"):
-        apply_env_overlay(OmniConfig(), environ={"OMNI_IMAGE_PROVIDER": "dall-e", "OMNI_IMAGE_BASE_URL": IMAGE_BASE})
+        apply_env_overlay(
+            OmniConfig(), environ={"OMNI_IMAGE_PROVIDER": "dall-e", "OMNI_IMAGE_BASE_URL": IMAGE_BASE}
+        )
 
 
 def test_image_section_validator_requires_base_url() -> None:
@@ -180,10 +186,14 @@ def test_env_to_http_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OMNI_IMAGE_BASE_URL", IMAGE_BASE)
     monkeypatch.setenv("OMNI_OPENAI_COMPATIBLE_API_KEY", "sk-test")
     search_route = respx.post(f"{SEARCH_BASE}/search").mock(
-        return_value=httpx.Response(200, json={"results": [{"title": "t", "url": "https://x", "snippet": "s"}]})
+        return_value=httpx.Response(
+            200, json={"results": [{"title": "t", "url": "https://x", "snippet": "s"}]}
+        )
     )
     image_route = respx.post(f"{IMAGE_BASE}/images/generations").mock(
-        return_value=httpx.Response(200, json={"created": 1, "data": [{"b64_json": base64.b64encode(PNG).decode()}]})
+        return_value=httpx.Response(
+            200, json={"created": 1, "data": [{"b64_json": base64.b64encode(PNG).decode()}]}
+        )
     )
     client = build_client(OmniConfig())
     found = client.search.search("hello", max_results=2)
